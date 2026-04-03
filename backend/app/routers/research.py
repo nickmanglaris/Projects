@@ -38,6 +38,12 @@ async def search_cards(req: ResearchRequest):
     parts.append("PSA 10")
     query = " ".join(parts)
 
+    if not results:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No PSA 10 completed listings found for '{query}'. Try broader search terms or check the backend console for errors.",
+        )
+
     return ResearchResponse(
         results=[ResearchResult(**r) for r in results],
         query=query,

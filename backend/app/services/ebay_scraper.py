@@ -4,6 +4,7 @@ Uses httpx + selectolax to scrape public eBay search results.
 """
 import asyncio
 import hashlib
+import logging
 import random
 import re
 from datetime import datetime, timedelta
@@ -12,6 +13,8 @@ from urllib.parse import quote_plus
 
 import httpx
 from selectolax.parser import HTMLParser
+
+logger = logging.getLogger(__name__)
 
 HEADERS = {
     "User-Agent": (
@@ -22,6 +25,7 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
     "Accept-Encoding": "gzip, deflate, br",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Referer": "https://www.ebay.com/",
 }
 
 # In-memory cache: {query_hash: {"data": [...], "expires": datetime}}
@@ -36,13 +40,26 @@ def _cache_key(req: dict) -> str:
 
 
 def _build_query(player_name: str, year: Optional[int], variation: Optional[str]) -> str:
-    parts = ["PSA 10"]
+    parts = []
     if year:
         parts.append(str(year))
     parts.append(player_name)
     if variation:
         parts.append(variation)
+    parts.append("PSA 10")
     return " ".join(parts)
+
+
+def _is_psa10(title: str) -> bool:
+    """Flexible PSA 10 check covering common title formats."""
+    t = title.upper()
+    return (
+        "PSA 10" in t
+        or "PSA10" in t
+        or "PSA GEM MT 10" in t
+        or "GEM MINT 10" in t
+        or "PSA GEM 10" in t
+    )
 
 
 def _parse_price(text: str) -> Optional[float]:
@@ -97,7 +114,7 @@ async def scrape_completed_listings(
 
     results = []
     try:
-        async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True, timeout=15) as client:
+        async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True, timeout=20) as client:
             # Warm up with a root request to get cookies
             try:
                 await client.get("https://www.ebay.com", timeout=8)
@@ -107,17 +124,40 @@ async def scrape_completed_listings(
             await asyncio.sleep(random.uniform(1.5, 3.0))
 
             resp = await client.get(url)
+            logger.info(f"eBay scrape status: {resp.status_code} for query: {query}")
+
             if resp.status_code == 403 or _is_captcha_page(resp.text):
                 raise RuntimeError("ebay_rate_limited")
 
             tree = HTMLParser(resp.text)
+            items = tree.css("li.s-item")
+            logger.info(f"eBay raw items found: {len(items)}")
 
-            for item in tree.css("li.s-item"):
-                title_el = item.css_first(".s-item__title")
-                price_el = item.css_first(".s-item__price")
-                date_el = item.css_first(".s-item__ended-date")
-                img_el = item.css_first(".s-item__image-img")
-                link_el = item.css_first(".s-item__link")
+            for item in items:
+                # Try multiple selector variants eBay uses
+                title_el = (
+                    item.css_first(".s-item__title")
+                    or item.css_first("[class*='s-item__title']")
+                )
+                price_el = (
+                    item.css_first(".s-item__price")
+                    or item.css_first("[class*='s-item__price']")
+                )
+                date_el = (
+                    item.css_first(".s-item__ended-date")
+                    or item.css_first(".s-item__detail--primary")
+                    or item.css_first("[class*='ended']")
+                )
+                img_el = (
+                    item.css_first(".s-item__image-img")
+                    or item.css_first("img.s-item__image-img")
+                    or item.css_first(".s-item__image img")
+                )
+                link_el = (
+                    item.css_first(".s-item__link")
+                    or item.css_first("a.s-item__link")
+                    or item.css_first("a[href*='itm/']")
+                )
 
                 if not title_el or not price_el:
                     continue
@@ -128,17 +168,14 @@ async def scrape_completed_listings(
 
                 price_text = price_el.text(strip=True)
                 # Skip range prices for now
-                if "to" in price_text.lower():
+                if " to " in price_text.lower():
                     continue
                 price = _parse_price(price_text)
                 if price is None:
                     continue
 
                 # Filter to PSA 10 only
-                title_upper = title.upper()
-                if "PSA" not in title_upper and "PSA10" not in title_upper:
-                    continue
-                if "PSA 10" not in title_upper and "PSA10" not in title_upper:
+                if not _is_psa10(title):
                     continue
 
                 results.append({
@@ -153,11 +190,12 @@ async def scrape_completed_listings(
                 if len(results) >= max_results:
                     break
 
+        logger.info(f"eBay scrape results after PSA 10 filter: {len(results)}")
+
     except RuntimeError:
         raise
     except Exception as e:
-        # Return empty on network errors rather than crash
-        pass
+        logger.error(f"eBay scraper error: {type(e).__name__}: {e}")
 
     # Cache results
     _cache[req_key] = {

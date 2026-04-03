@@ -70,7 +70,7 @@ export default function ResearchPage() {
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div>
         <h1 className="text-xl font-bold text-gray-900">Card Research</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Search eBay completed listings for PSA 10 cards</p>
+        <p className="text-sm text-gray-500 mt-0.5">Search eBay for raw ungraded cards with PSA 10 potential</p>
       </div>
 
       {/* Search form */}
@@ -151,7 +151,7 @@ export default function ResearchPage() {
             className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            {loading ? "Searching eBay..." : "Search PSA 10 Listings"}
+            {loading ? "Searching eBay..." : "Find Raw Cards"}
           </button>
         </form>
       </div>

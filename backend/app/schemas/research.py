@@ -9,7 +9,16 @@ class ResearchRequest(BaseModel):
     variation: Optional[str] = None
     min_price: Optional[float] = None
     max_price: Optional[float] = None
-    max_results: int = 25
+    max_results: int = 20
+
+
+class CardAnalysis(BaseModel):
+    psa10_potential: str = "Unknown"  # High / Medium / Low / Unknown / Not analyzed
+    verdict: Optional[str] = None
+    centering: Optional[str] = None
+    corners: Optional[str] = None
+    edges: Optional[str] = None
+    surface: Optional[str] = None
 
 
 class ResearchResult(BaseModel):
@@ -19,6 +28,7 @@ class ResearchResult(BaseModel):
     image_url: Optional[str] = None
     listing_url: Optional[str] = None
     grade: Optional[str] = None
+    analysis: Optional[CardAnalysis] = None
 
 
 class ResearchResponse(BaseModel):
@@ -28,3 +38,4 @@ class ResearchResponse(BaseModel):
     total_found: int
     avg_price: Optional[float] = None
     price_range: Optional[dict] = None
+    ai_analysis_enabled: bool = False

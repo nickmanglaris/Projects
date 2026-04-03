@@ -66,6 +66,7 @@ export interface ResearchResponse {
   total_found: number;
   avg_price?: number;
   price_range?: { min: number; max: number };
+  ai_analysis_enabled: boolean;
 }
 
 export interface Prospect {

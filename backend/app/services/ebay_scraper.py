@@ -1,6 +1,6 @@
 """
-eBay completed listings scraper for card research.
-Uses httpx + selectolax to scrape public eBay search results.
+eBay raw card listings scraper.
+Searches for ungraded cards and returns listings with images for PSA 10 analysis.
 """
 import asyncio
 import hashlib
@@ -28,15 +28,16 @@ HEADERS = {
     "Referer": "https://www.ebay.com/",
 }
 
-# In-memory cache: {query_hash: {"data": [...], "expires": datetime}}
+# Terms that indicate a card is already graded — skip these
+GRADED_TERMS = ["psa", "bgs", "sgc", "cgc", "hga", "ace", "graded", "gem mt", "mint 10"]
+
 _cache: dict[str, dict] = {}
-CACHE_TTL_HOURS = 4
+CACHE_TTL_HOURS = 2
 
 
 def _cache_key(req: dict) -> str:
-    today = datetime.now().strftime("%Y-%m-%d")
-    s = f"{req}_{today}"
-    return hashlib.md5(s.encode()).hexdigest()
+    today = datetime.now().strftime("%Y-%m-%d-%H")
+    return hashlib.md5(f"{req}_{today}".encode()).hexdigest()
 
 
 def _build_query(player_name: str, year: Optional[int], variation: Optional[str]) -> str:
@@ -46,20 +47,7 @@ def _build_query(player_name: str, year: Optional[int], variation: Optional[str]
     parts.append(player_name)
     if variation:
         parts.append(variation)
-    parts.append("PSA 10")
     return " ".join(parts)
-
-
-def _is_psa10(title: str) -> bool:
-    """Flexible PSA 10 check covering common title formats."""
-    t = title.upper()
-    return (
-        "PSA 10" in t
-        or "PSA10" in t
-        or "PSA GEM MT 10" in t
-        or "GEM MINT 10" in t
-        or "PSA GEM 10" in t
-    )
 
 
 def _parse_price(text: str) -> Optional[float]:
@@ -75,23 +63,28 @@ def _parse_price(text: str) -> Optional[float]:
     return None
 
 
+def _is_graded(title: str) -> bool:
+    t = title.lower()
+    return any(term in t for term in GRADED_TERMS)
+
+
 def _is_captcha_page(html: str) -> bool:
     lower = html.lower()
     return "security measure" in lower or "captcha" in lower or "robot" in lower
 
 
-async def scrape_completed_listings(
+async def scrape_raw_listings(
     player_name: str,
     year: Optional[int] = None,
     variation: Optional[str] = None,
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
-    max_results: int = 25,
+    max_results: int = 20,
 ) -> list[dict]:
     req_key = _cache_key({"p": player_name, "y": year, "v": variation, "min": min_price, "max": max_price})
 
-    # Check cache
     if req_key in _cache and _cache[req_key]["expires"] > datetime.now():
+        logger.info("Returning cached results")
         return _cache[req_key]["data"]
 
     query = _build_query(player_name, year, variation)
@@ -103,19 +96,20 @@ async def scrape_completed_listings(
     if max_price:
         price_filter += f"&_udhi={max_price}"
 
+    # Search active listings (not completed) for raw cards to buy
     url = (
         f"https://www.ebay.com/sch/i.html"
         f"?_nkw={encoded}"
-        f"&LH_Complete=1&LH_Sold=1"
-        f"&_sop=13"  # sort by most recently ended
-        f"&_sacat=212"  # sports trading cards category
+        f"&_sacat=212"       # sports trading cards
+        f"&LH_BIN=1"         # Buy It Now listings (have clearer photos)
+        f"&_sop=15"          # sort by lowest price first
+        f"&_ipg=48"          # 48 results per page
         f"{price_filter}"
     )
 
     results = []
     try:
         async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True, timeout=20) as client:
-            # Warm up with a root request to get cookies
             try:
                 await client.get("https://www.ebay.com", timeout=8)
             except Exception:
@@ -124,80 +118,75 @@ async def scrape_completed_listings(
             await asyncio.sleep(random.uniform(1.5, 3.0))
 
             resp = await client.get(url)
-            logger.info(f"eBay scrape status: {resp.status_code} for query: {query}")
+            logger.info(f"eBay scrape status: {resp.status_code} | query: '{query}'")
 
             if resp.status_code == 403 or _is_captcha_page(resp.text):
                 raise RuntimeError("ebay_rate_limited")
 
             tree = HTMLParser(resp.text)
             items = tree.css("li.s-item")
-            logger.info(f"eBay raw items found: {len(items)}")
+            logger.info(f"eBay raw items found on page: {len(items)}")
 
             for item in items:
-                # Try multiple selector variants eBay uses
-                title_el = (
-                    item.css_first(".s-item__title")
-                    or item.css_first("[class*='s-item__title']")
-                )
-                price_el = (
-                    item.css_first(".s-item__price")
-                    or item.css_first("[class*='s-item__price']")
-                )
-                date_el = (
-                    item.css_first(".s-item__ended-date")
-                    or item.css_first(".s-item__detail--primary")
-                    or item.css_first("[class*='ended']")
-                )
+                title_el = item.css_first(".s-item__title") or item.css_first("[class*='s-item__title']")
+                price_el = item.css_first(".s-item__price") or item.css_first("[class*='s-item__price']")
                 img_el = (
                     item.css_first(".s-item__image-img")
                     or item.css_first("img.s-item__image-img")
                     or item.css_first(".s-item__image img")
                 )
-                link_el = (
-                    item.css_first(".s-item__link")
-                    or item.css_first("a.s-item__link")
-                    or item.css_first("a[href*='itm/']")
-                )
+                link_el = item.css_first(".s-item__link") or item.css_first("a[href*='itm/']")
 
                 if not title_el or not price_el:
                     continue
 
                 title = title_el.text(strip=True)
-                if "shop on ebay" in title.lower():
+                if not title or "shop on ebay" in title.lower():
+                    continue
+
+                # Skip already-graded cards
+                if _is_graded(title):
                     continue
 
                 price_text = price_el.text(strip=True)
-                # Skip range prices for now
                 if " to " in price_text.lower():
                     continue
                 price = _parse_price(price_text)
                 if price is None:
                     continue
 
-                # Filter to PSA 10 only
-                if not _is_psa10(title):
-                    continue
+                # Get highest quality image URL available
+                image_url = None
+                if img_el:
+                    # Try to get the full size image by modifying the thumbnail URL
+                    src = img_el.attributes.get("src") or img_el.attributes.get("data-src") or ""
+                    # eBay thumbnails end in s-l140.jpg or s-l225.jpg — upgrade to s-l500
+                    image_url = re.sub(r"s-l\d+\.jpg", "s-l500.jpg", src) if src else None
+
+                listing_url = link_el.attributes.get("href") if link_el else None
+                # Clean tracking params from URL
+                if listing_url and "?" in listing_url:
+                    listing_url = listing_url.split("?")[0]
 
                 results.append({
                     "title": title,
                     "price": price,
-                    "sale_date": date_el.text(strip=True) if date_el else None,
-                    "image_url": img_el.attributes.get("src") if img_el else None,
-                    "listing_url": link_el.attributes.get("href") if link_el else None,
-                    "grade": "PSA 10",
+                    "image_url": image_url,
+                    "listing_url": listing_url,
+                    "grade": "raw",
+                    "sale_date": None,
                 })
 
                 if len(results) >= max_results:
                     break
 
-        logger.info(f"eBay scrape results after PSA 10 filter: {len(results)}")
+        logger.info(f"Raw listings after graded filter: {len(results)}")
 
     except RuntimeError:
         raise
     except Exception as e:
         logger.error(f"eBay scraper error: {type(e).__name__}: {e}")
 
-    # Cache results
     _cache[req_key] = {
         "data": results,
         "expires": datetime.now() + timedelta(hours=CACHE_TTL_HOURS),

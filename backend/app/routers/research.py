@@ -1,7 +1,7 @@
 from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from app.schemas.research import ResearchRequest, ResearchResponse, ResearchResult
-from app.services.ebay_scraper import scrape_completed_listings
+from app.services.ebay_scraper import scrape_raw_listings
 
 router = APIRouter(prefix="/research", tags=["research"])
 
@@ -9,7 +9,7 @@ router = APIRouter(prefix="/research", tags=["research"])
 @router.post("/search", response_model=ResearchResponse)
 async def search_cards(req: ResearchRequest):
     try:
-        results = await scrape_completed_listings(
+        listings = await scrape_raw_listings(
             player_name=req.player_name,
             year=req.year,
             variation=req.variation,
@@ -25,9 +25,11 @@ async def search_cards(req: ResearchRequest):
             )
         raise HTTPException(status_code=500, detail=str(e))
 
-    prices = [r["price"] for r in results if r.get("price")]
-    avg_price = round(sum(prices) / len(prices), 2) if prices else None
-    price_range = {"min": min(prices), "max": max(prices)} if prices else None
+    if not listings:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No raw card listings found. Try different search terms or check the backend console for scrape logs.",
+        )
 
     parts = []
     if req.year:
@@ -35,20 +37,18 @@ async def search_cards(req: ResearchRequest):
     parts.append(req.player_name)
     if req.variation:
         parts.append(req.variation)
-    parts.append("PSA 10")
     query = " ".join(parts)
 
-    if not results:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No PSA 10 completed listings found for '{query}'. Try broader search terms or check the backend console for errors.",
-        )
+    prices = [r["price"] for r in listings if r.get("price")]
+    avg_price = round(sum(prices) / len(prices), 2) if prices else None
+    price_range = {"min": min(prices), "max": max(prices)} if prices else None
 
     return ResearchResponse(
-        results=[ResearchResult(**r) for r in results],
+        results=[ResearchResult(**{k: v for k, v in r.items() if k != "analysis"}) for r in listings],
         query=query,
         scraped_at=datetime.now(),
-        total_found=len(results),
+        total_found=len(listings),
         avg_price=avg_price,
         price_range=price_range,
+        ai_analysis_enabled=False,
     )

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.card import Card
 from app.models.price_history import PriceHistory
-from app.services.ebay_scraper import scrape_completed_listings
+from app.services.ebay_scraper import scrape_raw_listings
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ async def snapshot_card(db: AsyncSession, card: Card) -> PriceHistory | None:
     if existing.scalar_one_or_none():
         return None  # Already snapshotted today
 
-    results = await scrape_completed_listings(
+    results = await scrape_raw_listings(
         player_name=card.player_name or card.card_name,
         year=card.year,
         variation=card.variation,

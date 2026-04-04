@@ -3,7 +3,7 @@ eBay Sell Finances API integration.
 Fetches sales transactions (amount, fees, item title) for P&L dashboard.
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 import httpx
@@ -81,7 +81,10 @@ async def fetch_ebay_sales(user_token: str, days: int = 90) -> list[dict]:
                 fees = _parse_float(fee_info.get("value") if fee_info else None)
                 order_id = tx.get("orderId", "")
                 tx_date_raw = tx.get("transactionDate", "")
-                tx_date = tx_date_raw[:10] if tx_date_raw else datetime.utcnow().strftime("%Y-%m-%d")
+                try:
+                    tx_date = date.fromisoformat(tx_date_raw[:10]) if tx_date_raw else date.today()
+                except ValueError:
+                    tx_date = date.today()
 
                 results.append({
                     "ebay_item_id": order_id,

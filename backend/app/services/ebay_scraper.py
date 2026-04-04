@@ -84,8 +84,12 @@ async def scrape_raw_listings(
     req_key = _cache_key({"p": player_name, "y": year, "v": variation, "min": min_price, "max": max_price})
 
     if req_key in _cache and _cache[req_key]["expires"] > datetime.now():
-        logger.info("Returning cached results")
-        return _cache[req_key]["data"]
+        cached = _cache[req_key]["data"]
+        # Don't serve empty cache — retry the scrape
+        if cached:
+            logger.info(f"Returning {len(cached)} cached results")
+            return cached
+        logger.info("Cache had empty results — retrying scrape")
 
     query = _build_query(player_name, year, variation)
     encoded = quote_plus(query)
@@ -107,6 +111,7 @@ async def scrape_raw_listings(
         f"{price_filter}"
     )
 
+    logger.info(f"Scraping URL: {url}")
     results = []
     try:
         async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True, timeout=20) as client:
@@ -118,6 +123,7 @@ async def scrape_raw_listings(
             await asyncio.sleep(random.uniform(1.5, 3.0))
 
             resp = await client.get(url)
+            logger.info(f"Response size: {len(resp.text)} chars")
             logger.info(f"eBay scrape status: {resp.status_code} | query: '{query}'")
 
             if resp.status_code == 403 or _is_captcha_page(resp.text):

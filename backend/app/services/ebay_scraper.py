@@ -1,35 +1,21 @@
 """
-eBay raw card listings scraper.
-Searches for ungraded cards and returns listings with images for PSA 10 analysis.
+eBay raw card listings via the official eBay Finding API.
+Searches for ungraded cards with PSA 10 potential.
 """
-import asyncio
 import hashlib
 import logging
-import random
 import re
 from datetime import datetime, timedelta
 from typing import Optional
 from urllib.parse import quote_plus
 
 import httpx
-from selectolax.parser import HTMLParser
+
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-    "Referer": "https://www.ebay.com/",
-}
-
-# Terms that indicate a card is already graded — skip these
-GRADED_TERMS = ["psa", "bgs", "sgc", "cgc", "hga", "ace", "graded", "gem mt", "mint 10"]
+FINDING_API = "https://svcs.ebay.com/services/search/FindingService/v1"
 
 _cache: dict[str, dict] = {}
 CACHE_TTL_HOURS = 2
@@ -47,30 +33,18 @@ def _build_query(player_name: str, year: Optional[int], variation: Optional[str]
     parts.append(player_name)
     if variation:
         parts.append(variation)
+    # Exclude already-graded cards at the API level
+    parts.append("-psa -bgs -sgc -cgc -hga -graded")
     return " ".join(parts)
 
 
-def _parse_price(text: str) -> Optional[float]:
-    if not text:
+def _parse_price(val) -> Optional[float]:
+    if val is None:
         return None
-    text = text.replace(",", "").strip()
-    m = re.search(r"\$?([\d.]+)", text)
-    if m:
-        try:
-            return float(m.group(1))
-        except ValueError:
-            return None
-    return None
-
-
-def _is_graded(title: str) -> bool:
-    t = title.lower()
-    return any(term in t for term in GRADED_TERMS)
-
-
-def _is_captcha_page(html: str) -> bool:
-    lower = html.lower()
-    return "security measure" in lower or "captcha" in lower or "robot" in lower
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
 
 
 async def scrape_raw_listings(
@@ -85,135 +59,113 @@ async def scrape_raw_listings(
 
     if req_key in _cache and _cache[req_key]["expires"] > datetime.now():
         cached = _cache[req_key]["data"]
-        # Don't serve empty cache — retry the scrape
         if cached:
             logger.info(f"Returning {len(cached)} cached results")
             return cached
-        logger.info("Cache had empty results — retrying scrape")
+        logger.info("Cache had empty results — retrying API call")
+
+    app_id = settings.EBAY_CLIENT_ID
+    if not app_id or app_id == "YOUR_CLIENT_ID_HERE":
+        logger.error("EBAY_CLIENT_ID not set — cannot call Finding API")
+        return []
 
     query = _build_query(player_name, year, variation)
-    encoded = quote_plus(query)
 
-    price_filter = ""
-    if min_price:
-        price_filter += f"&_udlo={min_price}"
-    if max_price:
-        price_filter += f"&_udhi={max_price}"
+    # Build filter list
+    filters = [
+        ("itemFilter(0).name", "ListingType"),
+        ("itemFilter(0).value", "FixedPrice"),
+        ("itemFilter(1).name", "Condition"),
+        ("itemFilter(1).value", "3000"),   # 3000 = Used (raw cards are used)
+        ("itemFilter(1).value(1)", "1000"), # 1000 = New (some raw cards listed as new)
+    ]
 
-    # Search active listings (not completed) for raw cards to buy
-    url = (
-        f"https://www.ebay.com/sch/i.html"
-        f"?_nkw={encoded}"
-        f"&_sacat=212"       # sports trading cards
-        f"&LH_BIN=1"         # Buy It Now listings (have clearer photos)
-        f"&_sop=15"          # sort by lowest price first
-        f"&_ipg=48"          # 48 results per page
-        f"{price_filter}"
-    )
+    if min_price is not None:
+        idx = 2
+        filters += [
+            (f"itemFilter({idx}).name", "MinPrice"),
+            (f"itemFilter({idx}).value", str(min_price)),
+        ]
+        idx += 1
 
-    logger.info(f"Scraping URL: {url}")
+    if max_price is not None:
+        filters += [
+            (f"itemFilter({idx}).name", "MaxPrice"),
+            (f"itemFilter({idx}).value", str(max_price)),
+        ]
+
+    params = {
+        "OPERATION-NAME": "findItemsAdvanced",
+        "SERVICE-VERSION": "1.0.0",
+        "SECURITY-APPNAME": app_id,
+        "RESPONSE-DATA-FORMAT": "JSON",
+        "keywords": query,
+        "categoryId": "212",           # Sports Trading Cards
+        "sortOrder": "PricePlusShippingLowest",
+        "paginationInput.pageNumber": "1",
+        "paginationInput.entriesPerPage": str(min(max_results, 100)),
+    }
+    params.update(dict(filters))
+
+    logger.info(f"eBay Finding API query: '{query}'")
+
     results = []
     try:
-        async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True, timeout=20) as client:
-            try:
-                await client.get("https://www.ebay.com", timeout=8)
-            except Exception:
-                pass
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.get(FINDING_API, params=params)
+            logger.info(f"Finding API status: {resp.status_code}")
+            resp.raise_for_status()
+            data = resp.json()
 
-            await asyncio.sleep(random.uniform(1.5, 3.0))
+        # Navigate JSON envelope
+        root = data.get("findItemsAdvancedResponse", [{}])[0]
+        ack = root.get("ack", ["Failure"])[0]
+        logger.info(f"Finding API ack: {ack}")
 
-            resp = await client.get(url)
-            logger.info(f"Response size: {len(resp.text)} chars")
-            logger.info(f"eBay scrape status: {resp.status_code} | query: '{query}'")
+        if ack not in ("Success", "Warning"):
+            errors = root.get("errorMessage", [])
+            logger.error(f"Finding API error: {errors}")
+            return []
 
-            if resp.status_code == 403 or _is_captcha_page(resp.text):
-                raise RuntimeError("ebay_rate_limited")
+        search_result = root.get("searchResult", [{}])[0]
+        items = search_result.get("item", [])
+        logger.info(f"Finding API returned {len(items)} items")
 
-            tree = HTMLParser(resp.text)
+        for item in items:
+            title = (item.get("title") or [""])[0]
+            if not title:
+                continue
 
-            # Try multiple selectors — eBay periodically changes structure
-            items = (
-                tree.css("li.s-item")
-                or tree.css("div.s-item")
-                or tree.css("[class*='s-item']")
-            )
-            logger.info(f"eBay raw items found on page: {len(items)}")
+            view_url = (item.get("viewItemURL") or [""])[0]
+            gallery_url = (item.get("galleryURL") or [""])[0]
 
-            # Always probe the HTML structure to understand what eBay is serving
-            for probe in ["s-item", "srp-results", "b-list__item", "itmHldr", "lvresult", "data-view", "s-item__title"]:
-                count = resp.text.count(probe)
-                logger.info(f"  HTML pattern '{probe}': {count} occurrences")
+            # Upgrade thumbnail to larger image
+            image_url = re.sub(r"s-l\d+\.jpg", "s-l500.jpg", gallery_url) if gallery_url else None
 
-            # Log first matched item's raw HTML for selector debugging
-            if items:
-                logger.info(f"First item HTML: {items[0].html[:500]}")
+            # Price
+            selling = (item.get("sellingStatus") or [{}])[0]
+            price_info = (selling.get("currentPrice") or [{}])[0]
+            price = _parse_price(price_info.get("__value__"))
 
-            # Also try finding any li elements as a broader probe
-            all_li = tree.css("li")
-            logger.info(f"Total <li> elements on page: {len(all_li)}")
-            if all_li:
-                logger.info(f"First <li> sample: {all_li[0].html[:300]}")
+            if price is None:
+                continue
 
-            for item in items:
-                title_el = item.css_first(".s-item__title") or item.css_first("[class*='s-item__title']")
-                price_el = item.css_first(".s-item__price") or item.css_first("[class*='s-item__price']")
-                img_el = (
-                    item.css_first(".s-item__image-img")
-                    or item.css_first("img.s-item__image-img")
-                    or item.css_first(".s-item__image img")
-                )
-                link_el = item.css_first(".s-item__link") or item.css_first("a[href*='itm/']")
+            results.append({
+                "title": title,
+                "price": price,
+                "image_url": image_url,
+                "listing_url": view_url or None,
+                "grade": "raw",
+                "sale_date": None,
+            })
 
-                if not title_el or not price_el:
-                    continue
+            if len(results) >= max_results:
+                break
 
-                title = title_el.text(strip=True)
-                if not title or "shop on ebay" in title.lower():
-                    continue
-
-                # Skip already-graded cards
-                if _is_graded(title):
-                    continue
-
-                price_text = price_el.text(strip=True)
-                if " to " in price_text.lower():
-                    continue
-                price = _parse_price(price_text)
-                if price is None:
-                    continue
-
-                # Get highest quality image URL available
-                image_url = None
-                if img_el:
-                    # Try to get the full size image by modifying the thumbnail URL
-                    src = img_el.attributes.get("src") or img_el.attributes.get("data-src") or ""
-                    # eBay thumbnails end in s-l140.jpg or s-l225.jpg — upgrade to s-l500
-                    image_url = re.sub(r"s-l\d+\.jpg", "s-l500.jpg", src) if src else None
-
-                listing_url = link_el.attributes.get("href") if link_el else None
-                # Clean tracking params from URL
-                if listing_url and "?" in listing_url:
-                    listing_url = listing_url.split("?")[0]
-
-                results.append({
-                    "title": title,
-                    "price": price,
-                    "image_url": image_url,
-                    "listing_url": listing_url,
-                    "grade": "raw",
-                    "sale_date": None,
-                })
-
-                if len(results) >= max_results:
-                    break
-
-        logger.info(f"Raw listings after graded filter: {len(results)}")
-
-    except RuntimeError:
-        raise
     except Exception as e:
-        logger.error(f"eBay scraper error: {type(e).__name__}: {e}")
+        logger.error(f"eBay Finding API error: {type(e).__name__}: {e}")
 
+    logger.info(f"Raw listings returned: {len(results)}")
     _cache[req_key] = {
         "data": results,
         "expires": datetime.now() + timedelta(hours=CACHE_TTL_HOURS),

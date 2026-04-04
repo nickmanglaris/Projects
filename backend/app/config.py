@@ -9,10 +9,10 @@ class Settings(BaseSettings):
 
     ANTHROPIC_API_KEY: str = ""
 
-    EBAY_CLIENT_ID: str = "YOUR_CLIENT_ID_HERE"
+    EBAY_CLIENT_ID: str = "YOUR_CLIENT_ID_HERE"   # App ID (used as Finding API key)
     EBAY_CLIENT_SECRET: str = "YOUR_CLIENT_SECRET_HERE"
     EBAY_REDIRECT_URI: str = "http://localhost:8000/api/v1/ebay/auth/callback"
-    EBAY_SANDBOX: bool = True
+    EBAY_SANDBOX: bool = False
 
     @property
     def ebay_connected(self) -> bool:

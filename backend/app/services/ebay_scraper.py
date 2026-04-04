@@ -139,14 +139,20 @@ async def scrape_raw_listings(
             )
             logger.info(f"eBay raw items found on page: {len(items)}")
 
-            # Debug: log HTML snippet and selector probe if nothing found
-            if len(items) == 0:
-                html_snippet = resp.text[:3000]
-                logger.warning(f"Zero items — HTML head snippet:\n{html_snippet}")
-                # Check what eBay class patterns are present
-                for probe in ["s-item", "srp-results", "b-list__item", "itmHldr", "lvresult"]:
-                    count = resp.text.count(probe)
-                    logger.info(f"  HTML occurrences of '{probe}': {count}")
+            # Always probe the HTML structure to understand what eBay is serving
+            for probe in ["s-item", "srp-results", "b-list__item", "itmHldr", "lvresult", "data-view", "s-item__title"]:
+                count = resp.text.count(probe)
+                logger.info(f"  HTML pattern '{probe}': {count} occurrences")
+
+            # Log first matched item's raw HTML for selector debugging
+            if items:
+                logger.info(f"First item HTML: {items[0].html[:500]}")
+
+            # Also try finding any li elements as a broader probe
+            all_li = tree.css("li")
+            logger.info(f"Total <li> elements on page: {len(all_li)}")
+            if all_li:
+                logger.info(f"First <li> sample: {all_li[0].html[:300]}")
 
             for item in items:
                 title_el = item.css_first(".s-item__title") or item.css_first("[class*='s-item__title']")

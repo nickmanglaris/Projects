@@ -53,17 +53,56 @@ def _parse_price(val) -> Optional[float]:
         return None
 
 
+def _completed_items_url(app_id: str, query: str, max_results: int, end_time_from: Optional[str] = None) -> str:
+    params = [
+        ("OPERATION-NAME", "findCompletedItems"),
+        ("SERVICE-VERSION", "1.0.0"),
+        ("SECURITY-APPNAME", app_id),
+        ("RESPONSE-DATA-FORMAT", "JSON"),
+        ("keywords", query),
+        ("categoryId", "212"),
+        ("sortOrder", "EndTimeSoonest"),
+        ("paginationInput.pageNumber", "1"),
+        ("paginationInput.entriesPerPage", str(max_results)),
+        ("itemFilter(0).name", "SoldItemsOnly"),
+        ("itemFilter(0).value", "true"),
+    ]
+    if end_time_from:
+        params += [
+            ("itemFilter(1).name", "EndTimeFrom"),
+            ("itemFilter(1).value", end_time_from),
+        ]
+    return f"{FINDING_API}?{urlencode(params, safe='()')}"
+
+
+def _extract_prices(data: dict) -> list[float]:
+    root = data.get("findCompletedItemsResponse", [{}])[0]
+    ack = root.get("ack", ["Failure"])[0]
+    if ack not in ("Success", "Warning"):
+        return []
+    items = root.get("searchResult", [{}])[0].get("item", [])
+    prices = []
+    for item in items:
+        selling = (item.get("sellingStatus") or [{}])[0]
+        price_info = (selling.get("currentPrice") or [{}])[0]
+        p = _parse_price(price_info.get("__value__"))
+        if p and p > 1.0:
+            prices.append(p)
+    return prices
+
+
 async def fetch_psa_completed_prices(
     player_name: str,
     grade: int,
     year: Optional[int] = None,
     card_set: Optional[str] = None,
     variation: Optional[str] = None,
-    top_n: int = 5,
 ) -> Optional[float]:
     """
-    Search eBay completed/sold listings for a specific PSA grade and return avg price.
-    Uses findCompletedItems — separate rate limit bucket from findItemsAdvanced.
+    Search eBay completed/sold listings for a specific PSA grade.
+    Strategy:
+      1. Last 7 days, up to 25 sales → average those
+      2. If no recent sales → fetch last 1 sold as a reference point
     """
     parts = []
     if year:
@@ -84,50 +123,30 @@ async def fetch_psa_completed_prices(
     if not app_id or app_id == "YOUR_CLIENT_ID_HERE":
         return None
 
-    logger.info(f"eBay completedItems query (PSA {grade}): '{query}'")
+    seven_days_ago = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
-    base_params = [
-        ("OPERATION-NAME", "findCompletedItems"),
-        ("SERVICE-VERSION", "1.0.0"),
-        ("SECURITY-APPNAME", app_id),
-        ("RESPONSE-DATA-FORMAT", "JSON"),
-        ("keywords", query),
-        ("categoryId", "212"),
-        ("sortOrder", "EndTimeSoonest"),
-        ("paginationInput.pageNumber", "1"),
-        ("paginationInput.entriesPerPage", "20"),
-        ("itemFilter(0).name", "SoldItemsOnly"),
-        ("itemFilter(0).value", "true"),
-    ]
-
-    qs = urlencode(base_params, safe="()")
-    url = f"{FINDING_API}?{qs}"
-
-    prices = []
     try:
         async with httpx.AsyncClient(timeout=20) as client:
+            # Call 1: last 7 days, up to 25 results
+            url = _completed_items_url(app_id, query, max_results=25, end_time_from=seven_days_ago)
+            logger.info(f"completedItems (7d, PSA {grade}): '{query}'")
             resp = await client.get(url)
             logger.info(f"completedItems status: {resp.status_code}")
             if not resp.is_success:
                 logger.error(f"completedItems error: {resp.text[:300]}")
                 resp.raise_for_status()
-            data = resp.json()
+            prices = _extract_prices(resp.json())
+            logger.info(f"completedItems PSA {grade}: {len(prices)} sales in last 7 days")
 
-        root = data.get("findCompletedItemsResponse", [{}])[0]
-        ack = root.get("ack", ["Failure"])[0]
-        if ack not in ("Success", "Warning"):
-            logger.warning(f"completedItems ack={ack}")
-            return None
-
-        items = root.get("searchResult", [{}])[0].get("item", [])
-        logger.info(f"completedItems returned {len(items)} items for PSA {grade}")
-
-        for item in items:
-            selling = (item.get("sellingStatus") or [{}])[0]
-            price_info = (selling.get("currentPrice") or [{}])[0]
-            p = _parse_price(price_info.get("__value__"))
-            if p and p > 1.0:
-                prices.append(p)
+            if not prices:
+                # Call 2: no recent sales — fetch just the last sold as a reference
+                url = _completed_items_url(app_id, query, max_results=1)
+                logger.info(f"completedItems (last sold fallback, PSA {grade}): '{query}'")
+                resp = await client.get(url)
+                if resp.is_success:
+                    prices = _extract_prices(resp.json())
+                    if prices:
+                        logger.info(f"completedItems PSA {grade} last sold: ${prices[0]}")
 
     except Exception as e:
         logger.error(f"eBay completedItems error: {type(e).__name__}: {e}")
@@ -138,8 +157,8 @@ async def fetch_psa_completed_prices(
         _cache[req_key] = {"data": None, "expires": datetime.now() + timedelta(hours=2)}
         return None
 
-    avg = round(sum(prices[:top_n]) / len(prices[:top_n]), 2)
-    logger.info(f"completedItems PSA {grade} avg: ${avg} (from {len(prices[:top_n])} sales)")
+    avg = round(sum(prices) / len(prices), 2)
+    logger.info(f"completedItems PSA {grade} avg: ${avg} (from {len(prices)} sale{'s' if len(prices) > 1 else ''})")
     _cache[req_key] = {"data": avg, "expires": datetime.now() + timedelta(hours=CACHE_TTL_HOURS)}
     return avg
 

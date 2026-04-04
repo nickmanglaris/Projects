@@ -11,6 +11,7 @@ class Settings(BaseSettings):
 
     EBAY_CLIENT_ID: str = "YOUR_CLIENT_ID_HERE"   # App ID (used as Finding API key)
     EBAY_CLIENT_SECRET: str = "YOUR_CLIENT_SECRET_HERE"
+    EBAY_USER_TOKEN: str = ""                      # OAuth User Token for Trading/Finances API
     EBAY_REDIRECT_URI: str = "http://localhost:8000/api/v1/ebay/auth/callback"
     EBAY_SANDBOX: bool = False
 
@@ -20,6 +21,10 @@ class Settings(BaseSettings):
             self.EBAY_CLIENT_ID not in ("YOUR_CLIENT_ID_HERE", "")
             and self.EBAY_CLIENT_SECRET not in ("YOUR_CLIENT_SECRET_HERE", "")
         )
+
+    @property
+    def ebay_token_set(self) -> bool:
+        return bool(self.EBAY_USER_TOKEN)
 
 
 settings = Settings()

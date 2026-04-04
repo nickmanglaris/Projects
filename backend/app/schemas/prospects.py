@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 from pydantic import BaseModel
 
@@ -48,6 +48,9 @@ class PriceHistoryOut(BaseModel):
     min_price: Optional[float] = None
     max_price: Optional[float] = None
     sample_count: int
+    psa10_price: Optional[float] = None
+    psa9_price: Optional[float] = None
+    psa8_price: Optional[float] = None
 
     model_config = {"from_attributes": True}
 
@@ -57,4 +60,52 @@ class WatchlistEntry(BaseModel):
     latest_price: Optional[float] = None
     price_change_pct: Optional[float] = None
     suggested_list_price: Optional[float] = None
+    latest_psa10: Optional[float] = None
+    latest_psa9: Optional[float] = None
+    latest_psa8: Optional[float] = None
     price_history: list[PriceHistoryOut] = []
+
+
+class GradingSubmissionCreate(BaseModel):
+    player_name: str
+    year: Optional[int] = None
+    card_set: str
+    variation: Optional[str] = None
+    card_number: Optional[str] = None
+    psa_order_number: Optional[str] = None
+    submitted_date: Optional[date] = None
+    estimated_return: Optional[date] = None
+    status: str = "submitted"
+    purchase_price: Optional[float] = None
+    grading_fee: Optional[float] = None
+    notes: Optional[str] = None
+
+
+class GradingSubmissionUpdate(BaseModel):
+    status: Optional[str] = None
+    grade_received: Optional[int] = None
+    cert_number: Optional[str] = None
+    estimated_return: Optional[date] = None
+    psa_order_number: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class GradingSubmissionOut(BaseModel):
+    id: int
+    player_name: str
+    year: Optional[int] = None
+    card_set: str
+    variation: Optional[str] = None
+    card_number: Optional[str] = None
+    psa_order_number: Optional[str] = None
+    submitted_date: Optional[date] = None
+    estimated_return: Optional[date] = None
+    status: str
+    grade_received: Optional[int] = None
+    cert_number: Optional[str] = None
+    purchase_price: Optional[float] = None
+    grading_fee: Optional[float] = None
+    notes: Optional[str] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

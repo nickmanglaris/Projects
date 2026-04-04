@@ -110,6 +110,9 @@ export interface PriceHistoryOut {
   min_price?: number;
   max_price?: number;
   sample_count: number;
+  psa10_price?: number;
+  psa9_price?: number;
+  psa8_price?: number;
 }
 
 export interface WatchlistEntry {
@@ -117,7 +120,29 @@ export interface WatchlistEntry {
   latest_price?: number;
   price_change_pct?: number;
   suggested_list_price?: number;
+  latest_psa10?: number;
+  latest_psa9?: number;
+  latest_psa8?: number;
   price_history: PriceHistoryOut[];
+}
+
+export interface GradingSubmission {
+  id: number;
+  player_name: string;
+  year?: number;
+  card_set: string;
+  variation?: string;
+  card_number?: string;
+  psa_order_number?: string;
+  submitted_date?: string;
+  estimated_return?: string;
+  status: string;
+  grade_received?: number;
+  cert_number?: string;
+  purchase_price?: number;
+  grading_fee?: number;
+  notes?: string;
+  created_at: string;
 }
 
 export interface StatementLine {

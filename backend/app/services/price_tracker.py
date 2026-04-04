@@ -1,6 +1,6 @@
 """
-Weekly price tracker service.
-Fetches eBay completed listing prices for watched cards and stores snapshots.
+Daily price tracker service.
+Fetches raw card prices from eBay and PSA 10/9/8 prices from 130point.com.
 """
 import logging
 import statistics
@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.card import Card
 from app.models.price_history import PriceHistory
 from app.services.ebay_scraper import scrape_raw_listings
+from app.services.price_tracker_130 import fetch_130point_prices
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,13 @@ async def snapshot_card(db: AsyncSession, card: Card) -> PriceHistory | None:
     low = round(min(prices), 2)
     high = round(max(prices), 2)
 
+    # Fetch PSA 10/9/8 prices from 130point
+    graded_prices = await fetch_130point_prices(
+        player_name=card.player_name or card.card_name,
+        year=card.year,
+        card_set=card.variation,   # variation field doubles as card set for graded lookup
+    )
+
     snapshot = PriceHistory(
         card_id=card.id,
         snapshot_date=today,
@@ -75,7 +83,10 @@ async def snapshot_card(db: AsyncSession, card: Card) -> PriceHistory | None:
         min_price=low,
         max_price=high,
         sample_count=len(prices),
-        source="ebay_completed",
+        source="ebay+130point",
+        psa10_price=graded_prices.get("psa10"),
+        psa9_price=graded_prices.get("psa9"),
+        psa8_price=graded_prices.get("psa8"),
     )
     db.add(snapshot)
     await db.commit()

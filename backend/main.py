@@ -22,7 +22,7 @@ async def _daily_prospect_refresh():
         logger.info(f"Prospect refresh complete: {count} updated")
 
 
-async def _weekly_price_snapshot():
+async def _daily_price_snapshot():
     logger.info("Running scheduled weekly price snapshot...")
     async with AsyncSessionLocal() as db:
         from app.services.price_tracker import snapshot_all_watchlist
@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI):
 
     # Schedule jobs
     scheduler.add_job(_daily_prospect_refresh, "cron", hour=6, minute=0, id="prospect_refresh")
-    scheduler.add_job(_weekly_price_snapshot, "cron", day_of_week="sun", hour=7, minute=0, id="price_snapshot")
+    scheduler.add_job(_daily_price_snapshot, "cron", hour=7, minute=30, id="price_snapshot")
     scheduler.start()
     logger.info("Scheduler started")
 

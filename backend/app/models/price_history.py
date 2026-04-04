@@ -17,4 +17,8 @@ class PriceHistory(Base):
     max_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     sample_count: Mapped[int] = mapped_column(Integer, default=0)
     source: Mapped[str] = mapped_column(String, default="ebay_completed")
+    # PSA graded card prices from 130point.com (added via migration)
+    psa10_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    psa9_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    psa8_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

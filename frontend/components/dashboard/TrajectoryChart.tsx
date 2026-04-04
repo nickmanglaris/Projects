@@ -28,7 +28,7 @@ function formatMonth(val: string) {
 export function TrajectoryChart({ data }: Props) {
   if (!data || data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-48 text-gray-400 text-sm">
+      <div className="flex items-center justify-center h-48 text-slate-500 text-sm">
         No data available for this period.
       </div>
     );
@@ -37,29 +37,30 @@ export function TrajectoryChart({ data }: Props) {
   return (
     <ResponsiveContainer width="100%" height={280}>
       <ComposedChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-        <XAxis dataKey="date" tickFormatter={formatMonth} tick={{ fontSize: 11 }} />
+        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+        <XAxis dataKey="date" tickFormatter={formatMonth} tick={{ fontSize: 11, fill: "#94a3b8" }} />
         <YAxis
           yAxisId="left"
           tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`}
-          tick={{ fontSize: 11 }}
+          tick={{ fontSize: 11, fill: "#94a3b8" }}
         />
         <YAxis
           yAxisId="right"
           orientation="right"
           tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`}
-          tick={{ fontSize: 11 }}
+          tick={{ fontSize: 11, fill: "#94a3b8" }}
         />
         <Tooltip
           formatter={(value, name) => [formatCurrency(value as number), name as string]}
           labelFormatter={(val) => formatMonth(val as string)}
+          contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "8px", color: "#f1f5f9" }}
         />
-        <Legend wrapperStyle={{ fontSize: 12 }} />
+        <Legend wrapperStyle={{ fontSize: 12, color: "#94a3b8" }} />
         <Bar
           yAxisId="left"
           dataKey="revenue"
           name="Revenue"
-          fill="#3b82f6"
+          fill="#f97316"
           opacity={0.8}
           radius={[2, 2, 0, 0]}
         />
@@ -67,8 +68,8 @@ export function TrajectoryChart({ data }: Props) {
           yAxisId="left"
           dataKey="cost"
           name="Cost"
-          fill="#e5e7eb"
-          opacity={0.8}
+          fill="#334155"
+          opacity={0.9}
           radius={[2, 2, 0, 0]}
         />
         <Line

@@ -63,20 +63,20 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Business Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-0.5">P&L overview and transaction history</p>
+          <h1 className="text-xl font-bold text-slate-100">Business Dashboard</h1>
+          <p className="text-sm text-slate-500 mt-0.5">P&L overview and transaction history</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Period selector */}
-          <div className="flex bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <div className="flex bg-slate-900 border border-slate-700 rounded-lg overflow-hidden">
             {PERIODS.map((p) => (
               <button
                 key={p.value}
                 onClick={() => setPeriod(p.value)}
                 className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                   period === p.value
-                    ? "bg-blue-600 text-white"
-                    : "text-gray-600 hover:bg-gray-50"
+                    ? "bg-orange-500 text-white"
+                    : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
                 }`}
               >
                 {p.label}
@@ -86,7 +86,7 @@ export default function DashboardPage() {
           <button
             onClick={handleSync}
             disabled={syncing}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 text-white text-xs font-medium rounded-lg hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
             {syncing ? "Syncing…" : "Sync eBay"}
@@ -96,14 +96,14 @@ export default function DashboardPage() {
 
       {/* Sync result message */}
       {syncResult && (
-        <div className="px-4 py-2.5 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+        <div className="px-4 py-2.5 bg-emerald-900/30 border border-emerald-700/50 rounded-lg text-emerald-300 text-sm">
           {syncResult}
         </div>
       )}
 
       {/* Mock data banner */}
       {summary?.is_mock && (
-        <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-sm">
+        <div className="flex items-center gap-2 px-4 py-3 bg-amber-900/30 border border-amber-700/50 rounded-lg text-amber-300 text-sm">
           <AlertTriangle className="w-4 h-4 shrink-0" />
           <span>
             <strong>Demo Data</strong> — eBay account not connected. Go to{" "}
@@ -116,7 +116,7 @@ export default function DashboardPage() {
       {summaryLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 h-28 animate-pulse bg-gray-100" />
+            <div key={i} className="bg-slate-900 rounded-xl border border-slate-700 p-5 h-28 animate-pulse" />
           ))}
         </div>
       ) : summary ? (
@@ -124,24 +124,24 @@ export default function DashboardPage() {
       ) : null}
 
       {/* Trajectory chart */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <h2 className="text-sm font-semibold text-gray-700 mb-4">Revenue & Profit Trajectory</h2>
+      <div className="bg-slate-900 rounded-xl border border-slate-700 p-5">
+        <h2 className="text-sm font-semibold text-slate-300 mb-4">Revenue & Profit Trajectory</h2>
         {trajectoryLoading ? (
-          <div className="h-64 animate-pulse bg-gray-100 rounded-lg" />
+          <div className="h-64 animate-pulse bg-slate-800 rounded-lg" />
         ) : (
           <TrajectoryChart data={trajectory?.data ?? []} />
         )}
       </div>
 
       {/* Transactions */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="bg-slate-900 rounded-xl border border-slate-700 p-5">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-700">Transactions</h2>
+          <h2 className="text-sm font-semibold text-slate-300">Transactions</h2>
           <div className="flex items-center gap-2">
             <select
               value={txType}
               onChange={(e) => { setTxType(e.target.value); setPage(1); }}
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none"
+              className="text-xs bg-slate-800 border border-slate-700 text-slate-300 rounded-lg px-2 py-1 focus:outline-none"
             >
               <option value="">All Types</option>
               <option value="purchase">Purchases</option>
@@ -150,7 +150,7 @@ export default function DashboardPage() {
           </div>
         </div>
         {txLoading ? (
-          <div className="h-40 animate-pulse bg-gray-100 rounded-lg" />
+          <div className="h-40 animate-pulse bg-slate-800 rounded-lg" />
         ) : (
           <TransactionTable
             transactions={transactions?.items ?? []}
@@ -162,12 +162,12 @@ export default function DashboardPage() {
       </div>
 
       {/* Statement upload */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="bg-slate-900 rounded-xl border border-slate-700 p-5">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-700">Import Bank Statement</h2>
+          <h2 className="text-sm font-semibold text-slate-300">Import Bank Statement</h2>
           <button
             onClick={() => setShowUploader((v) => !v)}
-            className="text-xs text-blue-600 hover:underline"
+            className="text-xs text-orange-400 hover:underline"
           >
             {showUploader ? "Hide" : "Show"}
           </button>

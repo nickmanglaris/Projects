@@ -66,78 +66,52 @@ export default function ResearchPage() {
     }
   }
 
+  const inp = "w-full text-sm bg-slate-800 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 placeholder:text-slate-600";
+
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Card Research</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Search eBay for raw ungraded cards with PSA 10 potential</p>
+        <h1 className="text-xl font-bold text-slate-100">Card Research</h1>
+        <p className="text-sm text-slate-500 mt-0.5">Search eBay for raw ungraded cards with PSA 10 potential</p>
       </div>
 
       {/* Search form */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="bg-slate-900 rounded-xl border border-slate-700 p-5">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Player Name <span className="text-red-500">*</span>
+              <label className="block text-xs font-medium text-slate-400 mb-1">
+                Player Name <span className="text-red-400">*</span>
               </label>
-              <input
-                {...register("player_name")}
-                placeholder="e.g. Wander Franco"
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <input {...register("player_name")} placeholder="e.g. Wander Franco" className={inp} />
               {errors.player_name && (
-                <p className="text-xs text-red-500 mt-1">{errors.player_name.message}</p>
+                <p className="text-xs text-red-400 mt-1">{errors.player_name.message}</p>
               )}
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Year</label>
-              <input
-                {...register("year")}
-                type="number"
-                placeholder="e.g. 2021"
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <label className="block text-xs font-medium text-slate-400 mb-1">Year</label>
+              <input {...register("year")} type="number" placeholder="e.g. 2021" className={inp} />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Variation</label>
-              <input
-                {...register("variation")}
-                placeholder="e.g. Bowman Chrome"
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <label className="block text-xs font-medium text-slate-400 mb-1">Variation</label>
+              <input {...register("variation")} placeholder="e.g. Bowman Chrome" className={inp} />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Min Price ($)</label>
-              <input
-                {...register("min_price")}
-                type="number"
-                step="0.01"
-                placeholder="e.g. 20"
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <label className="block text-xs font-medium text-slate-400 mb-1">Min Price ($)</label>
+              <input {...register("min_price")} type="number" step="0.01" placeholder="e.g. 20" className={inp} />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Max Price ($)</label>
-              <input
-                {...register("max_price")}
-                type="number"
-                step="0.01"
-                placeholder="e.g. 200"
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <label className="block text-xs font-medium text-slate-400 mb-1">Max Price ($)</label>
+              <input {...register("max_price")} type="number" step="0.01" placeholder="e.g. 200" className={inp} />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Max Results</label>
-              <select
-                {...register("max_results")}
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
+              <label className="block text-xs font-medium text-slate-400 mb-1">Max Results</label>
+              <select {...register("max_results")} className={inp}>
                 <option value="10">10</option>
                 <option value="25">25</option>
                 <option value="50">50</option>
@@ -148,7 +122,7 @@ export default function ResearchPage() {
           <button
             type="submit"
             disabled={loading}
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2.5 bg-orange-500 text-white text-sm font-semibold rounded-lg hover:bg-orange-600 disabled:opacity-50"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             {loading ? "Searching eBay..." : "Find Raw Cards"}
@@ -158,25 +132,25 @@ export default function ResearchPage() {
 
       {/* Error */}
       {error && (
-        <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
+        <div className="flex items-center gap-3 p-4 bg-red-900/30 border border-red-700/50 rounded-xl text-red-400">
           <AlertCircle className="w-5 h-5 shrink-0" />
           <div>
             <p className="text-sm font-medium">Search failed</p>
-            <p className="text-xs text-red-500 mt-0.5">{error}</p>
+            <p className="text-xs mt-0.5 text-red-400/70">{error}</p>
           </div>
         </div>
       )}
 
       {/* Results */}
       {result && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <div className="bg-slate-900 rounded-xl border border-slate-700 p-5 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-gray-700">
-                {result.total_found} results for "{result.query}"
+              <h2 className="text-sm font-semibold text-slate-300">
+                {result.total_found} results for &ldquo;{result.query}&rdquo;
               </h2>
               {result.avg_price && (
-                <p className="text-xs text-gray-500 mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Avg price: {formatCurrency(result.avg_price)}
                   {result.price_range && (
                     <> · Range: {formatCurrency(result.price_range.min)} – {formatCurrency(result.price_range.max)}</>
@@ -187,39 +161,39 @@ export default function ResearchPage() {
           </div>
 
           {result.results.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-8">
-              No PSA 10 completed listings found. Try broadening your search.
+            <p className="text-sm text-slate-500 text-center py-8">
+              No listings found. Try broadening your search.
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <div className="overflow-x-auto rounded-lg border border-slate-700">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50">
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Card</th>
-                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Price</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Sold</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                  <tr className="bg-slate-800">
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase">Card</th>
+                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-400 uppercase">Price</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase">Sold</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-400 uppercase">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-slate-700/50">
                   {result.results.map((r, i) => (
-                    <tr key={i} className="hover:bg-gray-50">
+                    <tr key={i} className="hover:bg-slate-800/50">
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-3">
                           {r.image_url && (
                             <img
                               src={r.image_url}
                               alt={r.title}
-                              className="w-10 h-10 object-contain rounded border border-gray-100"
+                              className="w-10 h-10 object-contain rounded border border-slate-700"
                             />
                           )}
-                          <span className="font-medium text-gray-900 max-w-xs truncate">{r.title}</span>
+                          <span className="font-medium text-slate-100 max-w-xs truncate">{r.title}</span>
                         </div>
                       </td>
-                      <td className="px-3 py-2.5 text-right font-mono font-semibold text-gray-900">
+                      <td className="px-3 py-2.5 text-right font-mono font-semibold text-slate-100">
                         {formatCurrency(r.price)}
                       </td>
-                      <td className="px-3 py-2.5 text-gray-500 text-xs">{r.sale_date || "—"}</td>
+                      <td className="px-3 py-2.5 text-slate-500 text-xs">{r.sale_date || "—"}</td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center justify-center gap-2">
                           {r.listing_url && (
@@ -227,7 +201,7 @@ export default function ResearchPage() {
                               href={r.listing_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="p-1.5 text-gray-400 hover:text-blue-600 rounded"
+                              className="p-1.5 text-slate-500 hover:text-orange-400 rounded"
                               title="View on eBay"
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
@@ -238,8 +212,8 @@ export default function ResearchPage() {
                             disabled={addedCards.has(i)}
                             className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-lg transition-colors ${
                               addedCards.has(i)
-                                ? "bg-emerald-50 text-emerald-600"
-                                : "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                                ? "bg-emerald-900/50 text-emerald-300"
+                                : "bg-orange-500/10 text-orange-400 hover:bg-orange-500/20"
                             }`}
                             title="Add to watchlist"
                           >

@@ -23,11 +23,16 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-56 bg-white border-r border-gray-200 flex flex-col shrink-0">
+    <aside className="w-56 bg-slate-950 border-r border-slate-800 flex flex-col shrink-0">
       {/* Logo */}
-      <div className="h-14 flex items-center px-4 border-b border-gray-200">
-        <span className="text-base font-bold text-blue-600 tracking-tight">
-          CardBiz
+      <div className="h-20 flex items-center gap-2.5 px-4 border-b border-slate-800">
+        <img
+          src="/nicks-naks-logo.png"
+          alt="Nicks Naks"
+          className="w-12 h-12 rounded-xl object-cover shrink-0"
+        />
+        <span className="text-base font-bold text-orange-400 tracking-tight leading-tight">
+          Nicks Naks
         </span>
       </div>
 
@@ -42,8 +47,8 @@ export function Sidebar() {
               className={cn(
                 "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                 active
-                  ? "bg-blue-50 text-blue-700"
-                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                  ? "bg-orange-500/15 text-orange-400"
+                  : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
               )}
             >
               <Icon className="w-4 h-4 shrink-0" />
@@ -54,8 +59,8 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-3 border-t border-gray-200">
-        <p className="text-xs text-gray-400">Sports Card Dashboard v1.0</p>
+      <div className="px-4 py-3 border-t border-slate-800">
+        <p className="text-xs text-slate-600">Nicks Naks Dashboard v1.0</p>
       </div>
     </aside>
   );

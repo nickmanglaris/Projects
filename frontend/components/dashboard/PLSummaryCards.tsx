@@ -18,10 +18,10 @@ interface KPICardProps {
 
 function KPICard({ label, value, icon, positive, subtitle }: KPICardProps) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-3">
+    <div className="bg-slate-900 rounded-xl border border-slate-700 p-5 flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-gray-500">{label}</span>
-        <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
+        <span className="text-sm font-medium text-slate-400">{label}</span>
+        <div className="w-9 h-9 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-400">
           {icon}
         </div>
       </div>
@@ -29,16 +29,16 @@ function KPICard({ label, value, icon, positive, subtitle }: KPICardProps) {
         <span
           className={`text-2xl font-bold ${
             positive === true
-              ? "text-emerald-600"
+              ? "text-emerald-400"
               : positive === false
-              ? "text-red-500"
-              : "text-gray-900"
+              ? "text-red-400"
+              : "text-slate-100"
           }`}
         >
           {value}
         </span>
       </div>
-      {subtitle && <p className="text-xs text-gray-400">{subtitle}</p>}
+      {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
     </div>
   );
 }

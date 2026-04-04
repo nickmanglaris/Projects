@@ -15,17 +15,17 @@ import { Plus, Trash2, RefreshCw, Loader2, TrendingUp, TrendingDown, Pencil, X }
 
 // ── Status badge ────────────────────────────────────────────────────────────
 const STATUS_COLORS: Record<string, string> = {
-  submitted: "bg-gray-100 text-gray-600",
-  received:  "bg-blue-100 text-blue-700",
-  grading:   "bg-yellow-100 text-yellow-700",
-  graded:    "bg-green-100 text-green-700",
-  shipped:   "bg-purple-100 text-purple-700",
-  returned:  "bg-emerald-100 text-emerald-700",
+  submitted: "bg-slate-700 text-slate-300",
+  received:  "bg-blue-900/50 text-blue-300",
+  grading:   "bg-yellow-900/50 text-yellow-300",
+  graded:    "bg-green-900/50 text-green-300",
+  shipped:   "bg-purple-900/50 text-purple-300",
+  returned:  "bg-emerald-900/50 text-emerald-300",
 };
 
 function StatusBadge({ status }: { status: string }) {
   return (
-    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[status] ?? "bg-gray-100 text-gray-600"}`}>
+    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[status] ?? "bg-slate-700 text-slate-300"}`}>
       {status}
     </span>
   );
@@ -33,19 +33,19 @@ function StatusBadge({ status }: { status: string }) {
 
 // ── Sparkline ───────────────────────────────────────────────────────────────
 function Sparkline({ data }: { data: PriceHistoryOut[] }) {
-  if (data.length < 2) return <span className="text-xs text-gray-300">—</span>;
+  if (data.length < 2) return <span className="text-xs text-slate-600">—</span>;
   return (
     <ResponsiveContainer width={100} height={32}>
       <LineChart data={data} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
-        <Line type="monotone" dataKey="avg_sale_price" stroke="#3b82f6" strokeWidth={1.5} dot={false} />
+        <Line type="monotone" dataKey="avg_sale_price" stroke="#f97316" strokeWidth={1.5} dot={false} />
       </LineChart>
     </ResponsiveContainer>
   );
 }
 
 function Price({ value }: { value?: number }) {
-  if (!value) return <span className="text-gray-300">—</span>;
-  return <span className="font-mono">{formatCurrency(value)}</span>;
+  if (!value) return <span className="text-slate-600">—</span>;
+  return <span className="font-mono text-slate-200">{formatCurrency(value)}</span>;
 }
 
 // ── Schemas ─────────────────────────────────────────────────────────────────
@@ -180,13 +180,13 @@ export default function TrackerPage() {
     await mutateGr();
   }
 
-  // ── Field label helper ──────────────────────────────────────────────────
+  // ── Field helpers ───────────────────────────────────────────────────────
   const lbl = (text: string, required = false) => (
-    <label className="block text-xs font-medium text-gray-700 mb-1">
-      {text}{required && <span className="text-red-500 ml-0.5">*</span>}
+    <label className="block text-xs font-medium text-slate-400 mb-1">
+      {text}{required && <span className="text-red-400 ml-0.5">*</span>}
     </label>
   );
-  const inp = "w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const inp = "w-full text-sm bg-slate-800 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 placeholder:text-slate-600";
 
   return (
     <div className="p-6 space-y-10 max-w-6xl mx-auto">
@@ -195,25 +195,25 @@ export default function TrackerPage() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Price Tracker</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Daily prices via 130point — PSA 10 / 9 / 8</p>
+            <h1 className="text-xl font-bold text-slate-100">Price Tracker</h1>
+            <p className="text-sm text-slate-500 mt-0.5">Daily prices via eBay sold — PSA 10 / 9 / 8</p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={handleRefreshAll} disabled={refreshing}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 disabled:opacity-50">
               {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
               Refresh Prices
             </button>
             <button onClick={() => setShowWlForm(v => !v)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700">
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-orange-500 text-white hover:bg-orange-600">
               <Plus className="w-4 h-4" /> Add Card
             </button>
           </div>
         </div>
 
         {showWlForm && (
-          <div className="bg-white rounded-xl border border-gray-200 p-5 mb-4">
-            <h2 className="text-sm font-semibold text-gray-700 mb-4">Add Card to Watchlist</h2>
+          <div className="bg-slate-900 rounded-xl border border-slate-700 p-5 mb-4">
+            <h2 className="text-sm font-semibold text-slate-300 mb-4">Add Card to Watchlist</h2>
             <form onSubmit={wlForm.handleSubmit(onAddWatchlist)} className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div className="col-span-2 sm:col-span-3">
                 {lbl("Card Name", true)}
@@ -223,8 +223,8 @@ export default function TrackerPage() {
               <div>{lbl("Year")}<input {...wlForm.register("year")} type="number" placeholder="2021" className={inp} /></div>
               <div>{lbl("Card Set / Variation")}<input {...wlForm.register("variation")} placeholder="Bowman Chrome" className={inp} /></div>
               <div className="col-span-2 sm:col-span-3 flex justify-end gap-2">
-                <button type="button" onClick={() => setShowWlForm(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={addingWl} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                <button type="button" onClick={() => setShowWlForm(false)} className="px-4 py-2 text-sm border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-800">Cancel</button>
+                <button type="submit" disabled={addingWl} className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600 disabled:opacity-50">
                   {addingWl && <Loader2 className="w-4 h-4 animate-spin" />} Add to Watchlist
                 </button>
               </div>
@@ -232,76 +232,79 @@ export default function TrackerPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl border border-gray-200">
+        <div className="bg-slate-900 rounded-xl border border-slate-700">
           {wlLoading ? (
-            <div className="p-8 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading...</div>
+            <div className="p-8 text-center text-slate-500"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading...</div>
           ) : !watchlist?.length ? (
             <div className="p-8 text-center">
-              <p className="text-gray-500 text-sm mb-3">No cards on your watchlist yet.</p>
-              <button onClick={() => setShowWlForm(true)} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">Add your first card</button>
+              <p className="text-slate-500 text-sm mb-3">No cards on your watchlist yet.</p>
+              <button onClick={() => setShowWlForm(true)} className="px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600">Add your first card</button>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Card</th>
-                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Raw Avg</th>
-                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-green-600 uppercase">PSA 10</th>
-                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-blue-600 uppercase">PSA 9</th>
-                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">PSA 8</th>
-                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Change</th>
-                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">List At</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase">Trend</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase"></th>
+                  <tr className="bg-slate-800 border-b border-slate-700">
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase">Card</th>
+                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-400 uppercase">Raw Avg</th>
+                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-green-400 uppercase">PSA 10</th>
+                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-blue-400 uppercase">PSA 9</th>
+                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-400 uppercase">PSA 8</th>
+                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-400 uppercase">Change</th>
+                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-400 uppercase">List At</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-400 uppercase">Trend</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-400 uppercase"></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-slate-700/50">
                   {watchlist.map((entry) => (
                     <>
-                      <tr key={entry.card.id} className="hover:bg-gray-50 cursor-pointer"
+                      <tr key={entry.card.id} className="hover:bg-slate-800/50 cursor-pointer"
                         onClick={() => setExpandedId(expandedId === entry.card.id ? null : entry.card.id)}>
                         <td className="px-3 py-2.5">
-                          <div className="font-medium text-gray-900">{entry.card.card_name}</div>
-                          {entry.card.player_name && <div className="text-xs text-gray-400">{entry.card.player_name}</div>}
+                          <div className="font-medium text-slate-100">{entry.card.card_name}</div>
+                          {entry.card.player_name && <div className="text-xs text-slate-500">{entry.card.player_name}</div>}
                         </td>
                         <td className="px-3 py-2.5 text-right"><Price value={entry.latest_price} /></td>
-                        <td className="px-3 py-2.5 text-right font-semibold text-green-700"><Price value={entry.latest_psa10} /></td>
-                        <td className="px-3 py-2.5 text-right text-blue-700"><Price value={entry.latest_psa9} /></td>
-                        <td className="px-3 py-2.5 text-right text-gray-600"><Price value={entry.latest_psa8} /></td>
+                        <td className="px-3 py-2.5 text-right font-semibold text-green-400"><Price value={entry.latest_psa10} /></td>
+                        <td className="px-3 py-2.5 text-right text-blue-400"><Price value={entry.latest_psa9} /></td>
+                        <td className="px-3 py-2.5 text-right text-slate-400"><Price value={entry.latest_psa8} /></td>
                         <td className="px-3 py-2.5 text-right">
                           {entry.price_change_pct != null ? (
-                            <span className={`flex items-center justify-end gap-0.5 font-medium ${entry.price_change_pct >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                            <span className={`flex items-center justify-end gap-0.5 font-medium ${entry.price_change_pct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                               {entry.price_change_pct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
                               {entry.price_change_pct >= 0 ? "+" : ""}{entry.price_change_pct}%
                             </span>
-                          ) : <span className="text-gray-300">—</span>}
+                          ) : <span className="text-slate-600">—</span>}
                         </td>
-                        <td className="px-3 py-2.5 text-right font-mono text-blue-600">
+                        <td className="px-3 py-2.5 text-right font-mono text-orange-400">
                           {entry.suggested_list_price ? formatCurrency(entry.suggested_list_price) : "—"}
                         </td>
                         <td className="px-3 py-2.5 flex justify-center"><Sparkline data={entry.price_history} /></td>
                         <td className="px-3 py-2.5 text-center">
                           <button onClick={(e) => { e.stopPropagation(); removeCard(entry.card.id); }}
-                            className="p-1 text-gray-400 hover:text-red-500 rounded" title="Remove">
+                            className="p-1 text-slate-500 hover:text-red-400 rounded" title="Remove">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </td>
                       </tr>
                       {expandedId === entry.card.id && entry.price_history.length > 0 && (
                         <tr key={`${entry.card.id}-chart`}>
-                          <td colSpan={9} className="px-4 pb-4 pt-2 bg-gray-50/60">
-                            <p className="text-xs font-medium text-gray-500 mb-2">12-week price history</p>
+                          <td colSpan={9} className="px-4 pb-4 pt-2 bg-slate-800/40">
+                            <p className="text-xs font-medium text-slate-500 mb-2">12-week price history</p>
                             <ResponsiveContainer width="100%" height={160}>
                               <LineChart data={entry.price_history} margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                                <XAxis dataKey="snapshot_date" tick={{ fontSize: 10 }} />
-                                <YAxis tickFormatter={(v) => `$${v}`} tick={{ fontSize: 10 }} />
-                                <Tooltip formatter={(v) => formatCurrency(v as number)} />
-                                <Line type="monotone" dataKey="avg_sale_price" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} name="Raw Avg" />
-                                <Line type="monotone" dataKey="psa10_price" stroke="#16a34a" strokeWidth={2} dot={{ r: 3 }} name="PSA 10" />
-                                <Line type="monotone" dataKey="psa9_price" stroke="#2563eb" strokeWidth={1.5} strokeDasharray="4 2" dot={false} name="PSA 9" />
-                                <Line type="monotone" dataKey="psa8_price" stroke="#9ca3af" strokeWidth={1.5} strokeDasharray="4 2" dot={false} name="PSA 8" />
+                                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                                <XAxis dataKey="snapshot_date" tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                                <YAxis tickFormatter={(v) => `$${v}`} tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                                <Tooltip
+                                  formatter={(v) => formatCurrency(v as number)}
+                                  contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "8px", color: "#f1f5f9" }}
+                                />
+                                <Line type="monotone" dataKey="avg_sale_price" stroke="#f97316" strokeWidth={2} dot={{ r: 3 }} name="Raw Avg" />
+                                <Line type="monotone" dataKey="psa10_price" stroke="#4ade80" strokeWidth={2} dot={{ r: 3 }} name="PSA 10" />
+                                <Line type="monotone" dataKey="psa9_price" stroke="#60a5fa" strokeWidth={1.5} strokeDasharray="4 2" dot={false} name="PSA 9" />
+                                <Line type="monotone" dataKey="psa8_price" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 2" dot={false} name="PSA 8" />
                               </LineChart>
                             </ResponsiveContainer>
                           </td>
@@ -320,18 +323,18 @@ export default function TrackerPage() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Cards at PSA</h2>
-            <p className="text-sm text-gray-500 mt-0.5">Track cards sent out for grading</p>
+            <h2 className="text-xl font-bold text-slate-100">Cards at PSA</h2>
+            <p className="text-sm text-slate-500 mt-0.5">Track cards sent out for grading</p>
           </div>
           <button onClick={() => { setShowGrForm(v => !v); grForm.reset(); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700">
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-orange-500 text-white hover:bg-orange-600">
             <Plus className="w-4 h-4" /> Add Submission
           </button>
         </div>
 
         {showGrForm && (
-          <div className="bg-white rounded-xl border border-gray-200 p-5 mb-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">New Grading Submission</h3>
+          <div className="bg-slate-900 rounded-xl border border-slate-700 p-5 mb-4">
+            <h3 className="text-sm font-semibold text-slate-300 mb-4">New Grading Submission</h3>
             <form onSubmit={grForm.handleSubmit(onAddGrading)} className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div>{lbl("Player Name", true)}<input {...grForm.register("player_name")} placeholder="Shohei Ohtani" className={inp} /></div>
               <div>{lbl("Year")}<input {...grForm.register("year")} type="number" placeholder="2018" className={inp} /></div>
@@ -345,8 +348,8 @@ export default function TrackerPage() {
               <div>{lbl("Grading Fee")}<input {...grForm.register("grading_fee")} type="number" step="0.01" placeholder="0.00" className={inp} /></div>
               <div className="col-span-2">{lbl("Notes")}<input {...grForm.register("notes")} placeholder="Optional notes" className={inp} /></div>
               <div className="col-span-2 sm:col-span-3 flex justify-end gap-2">
-                <button type="button" onClick={() => setShowGrForm(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={addingGr} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                <button type="button" onClick={() => setShowGrForm(false)} className="px-4 py-2 text-sm border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-800">Cancel</button>
+                <button type="submit" disabled={addingGr} className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600 disabled:opacity-50">
                   {addingGr && <Loader2 className="w-4 h-4 animate-spin" />} Add Submission
                 </button>
               </div>
@@ -354,45 +357,45 @@ export default function TrackerPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl border border-gray-200">
+        <div className="bg-slate-900 rounded-xl border border-slate-700">
           {grLoading ? (
-            <div className="p-8 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading...</div>
+            <div className="p-8 text-center text-slate-500"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading...</div>
           ) : !grading?.length ? (
             <div className="p-8 text-center">
-              <p className="text-gray-500 text-sm mb-3">No cards currently at PSA.</p>
-              <button onClick={() => setShowGrForm(true)} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">Add first submission</button>
+              <p className="text-slate-500 text-sm mb-3">No cards currently at PSA.</p>
+              <button onClick={() => setShowGrForm(true)} className="px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600">Add first submission</button>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Card</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase">Grade</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Submitted</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Est. Return</th>
-                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Cost</th>
-                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Fee</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase"></th>
+                  <tr className="bg-slate-800 border-b border-slate-700">
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase">Card</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase">Status</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-400 uppercase">Grade</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase">Submitted</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase">Est. Return</th>
+                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-400 uppercase">Cost</th>
+                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-400 uppercase">Fee</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-400 uppercase"></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-slate-700/50">
                   {grading.map((sub) => (
-                    <tr key={sub.id} className="hover:bg-gray-50">
+                    <tr key={sub.id} className="hover:bg-slate-800/50">
                       <td className="px-3 py-2.5">
-                        <div className="font-medium text-gray-900">{sub.player_name}</div>
-                        <div className="text-xs text-gray-400">
+                        <div className="font-medium text-slate-100">{sub.player_name}</div>
+                        <div className="text-xs text-slate-500">
                           {[sub.year, sub.card_set, sub.variation].filter(Boolean).join(" · ")}
-                          {sub.card_number && <span className="ml-1 text-gray-300">#{sub.card_number}</span>}
+                          {sub.card_number && <span className="ml-1 text-slate-600">#{sub.card_number}</span>}
                         </div>
-                        {sub.psa_order_number && <div className="text-xs text-gray-400">Order: {sub.psa_order_number}</div>}
+                        {sub.psa_order_number && <div className="text-xs text-slate-500">Order: {sub.psa_order_number}</div>}
                       </td>
                       <td className="px-3 py-2.5">
                         {editingId === sub.id ? (
                           <select defaultValue={sub.status}
                             onChange={(e) => patchGrading(sub.id, { status: e.target.value })}
-                            className="text-xs border border-gray-200 rounded px-1.5 py-1">
+                            className="text-xs bg-slate-800 border border-slate-700 text-slate-200 rounded px-1.5 py-1">
                             {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                           </select>
                         ) : (
@@ -404,29 +407,29 @@ export default function TrackerPage() {
                           <input type="number" min="1" max="10"
                             defaultValue={sub.grade_received ?? ""}
                             placeholder="1-10"
-                            className="w-14 text-xs border border-gray-200 rounded px-1 py-1 text-center"
+                            className="w-14 text-xs bg-slate-800 border border-slate-700 text-slate-200 rounded px-1 py-1 text-center"
                             onBlur={(e) => {
                               const g = e.target.value;
                               if (g) patchGrading(sub.id, { grade_received: parseInt(g), status: "returned" });
                             }} />
                         ) : (
                           sub.grade_received
-                            ? <span className="font-bold text-green-700">PSA {sub.grade_received}</span>
-                            : <span className="text-gray-300">—</span>
+                            ? <span className="font-bold text-green-400">PSA {sub.grade_received}</span>
+                            : <span className="text-slate-600">—</span>
                         )}
                       </td>
-                      <td className="px-3 py-2.5 text-xs text-gray-600">{sub.submitted_date ?? "—"}</td>
-                      <td className="px-3 py-2.5 text-xs text-gray-600">{sub.estimated_return ?? "—"}</td>
+                      <td className="px-3 py-2.5 text-xs text-slate-400">{sub.submitted_date ?? "—"}</td>
+                      <td className="px-3 py-2.5 text-xs text-slate-400">{sub.estimated_return ?? "—"}</td>
                       <td className="px-3 py-2.5 text-right font-mono text-xs"><Price value={sub.purchase_price} /></td>
                       <td className="px-3 py-2.5 text-right font-mono text-xs"><Price value={sub.grading_fee} /></td>
                       <td className="px-3 py-2.5 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <button onClick={() => setEditingId(editingId === sub.id ? null : sub.id)}
-                            className="p-1 text-gray-400 hover:text-blue-500 rounded" title="Edit">
+                            className="p-1 text-slate-500 hover:text-orange-400 rounded" title="Edit">
                             {editingId === sub.id ? <X className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
                           </button>
                           <button onClick={() => deleteGrading(sub.id)}
-                            className="p-1 text-gray-400 hover:text-red-500 rounded" title="Delete">
+                            className="p-1 text-slate-500 hover:text-red-400 rounded" title="Delete">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>

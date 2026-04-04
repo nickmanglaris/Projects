@@ -51,6 +51,7 @@ async def snapshot_card(db: AsyncSession, card: Card) -> PriceHistory | None:
     if existing.scalar_one_or_none():
         return None  # Already snapshotted today
 
+    # Run eBay and 130point fetches independently
     results = await scrape_raw_listings(
         player_name=card.player_name or card.card_name,
         year=card.year,
@@ -58,23 +59,20 @@ async def snapshot_card(db: AsyncSession, card: Card) -> PriceHistory | None:
         max_results=20,
     )
 
-    if not results:
-        return None
-
-    prices = [r["price"] for r in results if r.get("price")]
-    if not prices:
-        return None
-
-    avg = round(statistics.mean(prices), 2)
-    low = round(min(prices), 2)
-    high = round(max(prices), 2)
-
-    # Fetch PSA 10/9/8 prices from 130point
     graded_prices = await fetch_130point_prices(
         player_name=card.player_name or card.card_name,
         year=card.year,
-        card_set=card.variation,   # variation field doubles as card set for graded lookup
+        card_set=card.variation,
     )
+
+    prices = [r["price"] for r in results if r.get("price")]
+    avg = round(statistics.mean(prices), 2) if prices else None
+    low = round(min(prices), 2) if prices else None
+    high = round(max(prices), 2) if prices else None
+
+    # Skip snapshot only if both sources returned nothing
+    if avg is None and not any(graded_prices.values()):
+        return None
 
     snapshot = PriceHistory(
         card_id=card.id,

@@ -13,23 +13,13 @@ from datetime import datetime, timedelta
 from typing import Optional
 from urllib.parse import quote_plus
 
-import httpx
+from curl_cffi.requests import AsyncSession
 from selectolax.parser import HTMLParser
 
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://130point.com/sales/"
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Referer": "https://130point.com/",
-}
 
 _cache: dict[str, dict] = {}
 CACHE_TTL_HOURS = 23
@@ -86,7 +76,7 @@ async def _fetch_prices_for_grade(
     logger.info(f"130point fetch: {url}")
 
     try:
-        resp = await client.get(url, headers=HEADERS)
+        resp = await client.get(url)
         logger.info(f"130point status: {resp.status_code} | size: {len(resp.text)} chars")
 
         if not resp.is_success:
@@ -151,7 +141,7 @@ async def fetch_130point_prices(
     Fetch PSA 10, 9, and 8 prices from 130point for a given card.
     Returns {"psa10": float|None, "psa9": float|None, "psa8": float|None}
     """
-    async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
+    async with AsyncSession(impersonate="chrome124") as client:
         # Fetch grades sequentially with polite delays to avoid rate limiting
         results = {}
         for grade in [10, 9, 8]:

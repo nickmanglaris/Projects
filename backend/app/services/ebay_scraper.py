@@ -7,7 +7,7 @@ import logging
 import re
 from datetime import datetime, timedelta
 from typing import Optional
-from urllib.parse import quote_plus
+from urllib.parse import urlencode
 
 import httpx
 
@@ -16,6 +16,9 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 FINDING_API = "https://svcs.ebay.com/services/search/FindingService/v1"
+
+# Terms that indicate a card is already graded — filter post-API
+GRADED_TERMS = ["psa", "bgs", "sgc", "cgc", "hga", "ace", "graded", "gem mt", "mint 10"]
 
 _cache: dict[str, dict] = {}
 CACHE_TTL_HOURS = 2
@@ -33,9 +36,12 @@ def _build_query(player_name: str, year: Optional[int], variation: Optional[str]
     parts.append(player_name)
     if variation:
         parts.append(variation)
-    # Exclude already-graded cards at the API level
-    parts.append("-psa -bgs -sgc -cgc -hga -graded")
     return " ".join(parts)
+
+
+def _is_graded(title: str) -> bool:
+    t = title.lower()
+    return any(term in t for term in GRADED_TERMS)
 
 
 def _parse_price(val) -> Optional[float]:
@@ -70,48 +76,51 @@ async def scrape_raw_listings(
         return []
 
     query = _build_query(player_name, year, variation)
+    logger.info(f"eBay Finding API query: '{query}'")
 
-    # Build filter list
-    filters = [
+    # Build query string manually so parentheses in filter keys are NOT percent-encoded
+    # (eBay Finding API requires literal parentheses in parameter names)
+    base_params = [
+        ("OPERATION-NAME", "findItemsAdvanced"),
+        ("SERVICE-VERSION", "1.0.0"),
+        ("SECURITY-APPNAME", app_id),
+        ("RESPONSE-DATA-FORMAT", "JSON"),
+        ("keywords", query),
+        ("categoryId", "212"),
+        ("sortOrder", "PricePlusShippingLowest"),
+        ("paginationInput.pageNumber", "1"),
+        ("paginationInput.entriesPerPage", str(min(max_results, 100))),
         ("itemFilter(0).name", "ListingType"),
         ("itemFilter(0).value", "FixedPrice"),
     ]
 
     idx = 1
     if min_price is not None:
-        filters += [
+        base_params += [
             (f"itemFilter({idx}).name", "MinPrice"),
             (f"itemFilter({idx}).value", str(min_price)),
         ]
         idx += 1
-
     if max_price is not None:
-        filters += [
+        base_params += [
             (f"itemFilter({idx}).name", "MaxPrice"),
             (f"itemFilter({idx}).value", str(max_price)),
         ]
 
-    params = {
-        "OPERATION-NAME": "findItemsAdvanced",
-        "SERVICE-VERSION": "1.0.0",
-        "SECURITY-APPNAME": app_id,
-        "RESPONSE-DATA-FORMAT": "JSON",
-        "keywords": query,
-        "categoryId": "212",           # Sports Trading Cards
-        "sortOrder": "PricePlusShippingLowest",
-        "paginationInput.pageNumber": "1",
-        "paginationInput.entriesPerPage": str(min(max_results, 100)),
-    }
-    params.update(dict(filters))
-
-    logger.info(f"eBay Finding API query: '{query}'")
+    # safe='' means don't encode anything extra; we keep parentheses literal
+    qs = urlencode(base_params, safe="()")
+    url = f"{FINDING_API}?{qs}"
 
     results = []
     try:
         async with httpx.AsyncClient(timeout=20) as client:
-            resp = await client.get(FINDING_API, params=params)
+            resp = await client.get(url)
             logger.info(f"Finding API status: {resp.status_code}")
-            resp.raise_for_status()
+
+            if not resp.is_success:
+                logger.error(f"Finding API error body: {resp.text[:500]}")
+                resp.raise_for_status()
+
             data = resp.json()
 
         # Navigate JSON envelope
@@ -121,16 +130,20 @@ async def scrape_raw_listings(
 
         if ack not in ("Success", "Warning"):
             errors = root.get("errorMessage", [])
-            logger.error(f"Finding API error: {errors}")
+            logger.error(f"Finding API returned failure: {errors}")
             return []
 
         search_result = root.get("searchResult", [{}])[0]
         items = search_result.get("item", [])
-        logger.info(f"Finding API returned {len(items)} items")
+        logger.info(f"Finding API returned {len(items)} raw items")
 
         for item in items:
             title = (item.get("title") or [""])[0]
             if not title:
+                continue
+
+            # Skip already-graded cards
+            if _is_graded(title):
                 continue
 
             view_url = (item.get("viewItemURL") or [""])[0]

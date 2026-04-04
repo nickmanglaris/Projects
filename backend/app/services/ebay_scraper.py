@@ -75,13 +75,10 @@ async def scrape_raw_listings(
     filters = [
         ("itemFilter(0).name", "ListingType"),
         ("itemFilter(0).value", "FixedPrice"),
-        ("itemFilter(1).name", "Condition"),
-        ("itemFilter(1).value", "3000"),   # 3000 = Used (raw cards are used)
-        ("itemFilter(1).value(1)", "1000"), # 1000 = New (some raw cards listed as new)
     ]
 
+    idx = 1
     if min_price is not None:
-        idx = 2
         filters += [
             (f"itemFilter({idx}).name", "MinPrice"),
             (f"itemFilter({idx}).value", str(min_price)),

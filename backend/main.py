@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import init_db, AsyncSessionLocal
-from app.routers import dashboard, ebay, statements, research, prospects, tracker
+from app.routers import dashboard, ebay, statements, research, prospects, tracker, inventory
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -71,6 +71,7 @@ app.include_router(statements.router, prefix=API_PREFIX)
 app.include_router(research.router, prefix=API_PREFIX)
 app.include_router(prospects.router, prefix=API_PREFIX)
 app.include_router(tracker.router, prefix=API_PREFIX)
+app.include_router(inventory.router, prefix=API_PREFIX)
 
 
 @app.get("/health")

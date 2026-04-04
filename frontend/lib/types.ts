@@ -145,6 +145,26 @@ export interface GradingSubmission {
   created_at: string;
 }
 
+export interface InventoryListing {
+  item_id: string;
+  title: string;
+  price: number;
+  listed_date?: string;
+  days_listed: number;
+  quantity: number;
+  watch_count: number;
+  listing_url: string;
+  image_url?: string;
+}
+
+export interface InventoryResponse {
+  listings: InventoryListing[];
+  total_listings: number;
+  total_value: number;
+  stale_count: number;
+  flag_after_days: number;
+}
+
 export interface StatementLine {
   id: number;
   upload_id: number;

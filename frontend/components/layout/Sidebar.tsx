@@ -8,11 +8,13 @@ import {
   Search,
   TrendingUp,
   LineChart,
+  Package,
   Settings,
 } from "lucide-react";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/inventory", label: "Inventory", icon: Package },
   { href: "/research", label: "Research", icon: Search },
   { href: "/prospects", label: "Prospects", icon: TrendingUp },
   { href: "/tracker", label: "Price Tracker", icon: LineChart },

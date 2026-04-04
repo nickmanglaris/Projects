@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://130point.com/sales/"
 
-
 _cache: dict[str, dict] = {}
 CACHE_TTL_HOURS = 23
 
@@ -63,7 +62,7 @@ def _parse_price(text: str) -> Optional[float]:
 
 
 async def _fetch_prices_for_grade(
-    client: httpx.AsyncClient,
+    client: AsyncSession,
     query: str,
     top_n: int = 5,
 ) -> Optional[float]:
@@ -79,8 +78,8 @@ async def _fetch_prices_for_grade(
         resp = await client.get(url)
         logger.info(f"130point status: {resp.status_code} | size: {len(resp.text)} chars")
 
-        if not resp.is_success:
-            logger.warning(f"130point non-200 for query '{query}'")
+        if resp.status_code != 200:
+            logger.warning(f"130point non-200 for query '{query}': {resp.status_code}")
             return None
 
         tree = HTMLParser(resp.text)
@@ -121,7 +120,6 @@ async def _fetch_prices_for_grade(
             _cache[cache_key] = {"data": None, "expires": datetime.now() + timedelta(hours=1)}
             return None
 
-        # Average the most recent top_n prices
         avg = round(statistics.mean(prices[:top_n]), 2)
         _cache[cache_key] = {"data": avg, "expires": datetime.now() + timedelta(hours=CACHE_TTL_HOURS)}
         return avg
@@ -142,7 +140,13 @@ async def fetch_130point_prices(
     Returns {"psa10": float|None, "psa9": float|None, "psa8": float|None}
     """
     async with AsyncSession(impersonate="chrome124") as client:
-        # Fetch grades sequentially with polite delays to avoid rate limiting
+        # Warm up session with homepage visit to get cookies
+        try:
+            await client.get("https://130point.com/", timeout=10)
+            await asyncio.sleep(random.uniform(1.0, 2.0))
+        except Exception:
+            pass
+
         results = {}
         for grade in [10, 9, 8]:
             query = _build_query(player_name, grade, year, card_set, variation)

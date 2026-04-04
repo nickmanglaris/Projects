@@ -7,7 +7,7 @@ from app.database import get_db
 from app.models.transaction import Transaction
 from app.services import ebay_mock
 from app.services.ebay_oauth import generate_auth_url, handle_callback, get_auth_status, disconnect
-from app.services.ebay_trading import fetch_ebay_sales
+from app.services.ebay_trading import fetch_ebay_purchases, fetch_ebay_sales
 
 router = APIRouter(prefix="/ebay", tags=["ebay"])
 
@@ -77,6 +77,50 @@ async def sync_sales(days: int = 90, db: AsyncSession = Depends(get_db)):
             card_name=item["card_name"],
             amount=item["amount"],
             ebay_fees=item["ebay_fees"],
+            shipping_cost=item["shipping_cost"],
+            net_amount=net,
+            transaction_date=item["transaction_date"],
+            source="ebay",
+            reconciled=True,
+        )
+        db.add(tx)
+        created += 1
+
+    await db.commit()
+    return {"synced": created, "skipped_duplicates": skipped, "total_from_ebay": len(raw)}
+
+
+@router.post("/sync/purchases")
+async def sync_purchases(days: int = 90, db: AsyncSession = Depends(get_db)):
+    """
+    Pull completed buyer orders from eBay Trading API and save new ones to the database.
+    Uses EBAY_USER_TOKEN from .env. Skips duplicates by ebay_item_id.
+    """
+    if not settings.ebay_token_set:
+        raise HTTPException(status_code=400, detail="EBAY_USER_TOKEN not set in .env")
+
+    raw = await fetch_ebay_purchases(settings.EBAY_USER_TOKEN, days=days)
+
+    created = 0
+    skipped = 0
+    for item in raw:
+        order_id = item.get("ebay_item_id", "")
+
+        if order_id:
+            existing = await db.execute(
+                select(Transaction).where(Transaction.ebay_item_id == order_id)
+            )
+            if existing.scalar_one_or_none():
+                skipped += 1
+                continue
+
+        net = -round(item["amount"] + item["shipping_cost"], 2)
+        tx = Transaction(
+            ebay_item_id=order_id or None,
+            transaction_type="purchase",
+            card_name=item["card_name"],
+            amount=item["amount"],
+            ebay_fees=0.0,
             shipping_cost=item["shipping_cost"],
             net_amount=net,
             transaction_date=item["transaction_date"],

@@ -23,6 +23,8 @@ export default function DashboardPage() {
   const [txType, setTxType] = useState<string>("");
   const [page, setPage] = useState(1);
   const [showUploader, setShowUploader] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
 
   const { data: summary, isLoading: summaryLoading, mutate: mutateSummary } = useSWR<DashboardSummary>(
     `/dashboard/summary?period=${period}`
@@ -32,9 +34,29 @@ export default function DashboardPage() {
     `/dashboard/trajectory?period=${period}`
   );
 
-  const { data: transactions, isLoading: txLoading } = useSWR<TransactionListResponse>(
+  const { data: transactions, isLoading: txLoading, mutate: mutateTx } = useSWR<TransactionListResponse>(
     `/dashboard/transactions?page=${page}&limit=20${txType ? `&tx_type=${txType}` : ""}`
   );
+
+  async function handleSync() {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const [sales, purchases] = await Promise.all([
+        api.post<{ synced: number; skipped_duplicates: number }>("/ebay/sync/sales?days=90"),
+        api.post<{ synced: number; skipped_duplicates: number }>("/ebay/sync/purchases?days=90"),
+      ]);
+      setSyncResult(
+        `Synced ${sales.synced} sales + ${purchases.synced} purchases (${sales.skipped_duplicates + purchases.skipped_duplicates} already up to date)`
+      );
+      mutateSummary();
+      mutateTx();
+    } catch {
+      setSyncResult("Sync failed — check that your backend is running.");
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -62,14 +84,22 @@ export default function DashboardPage() {
             ))}
           </div>
           <button
-            onClick={() => mutateSummary()}
-            className="p-1.5 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50"
-            title="Refresh"
+            onClick={handleSync}
+            disabled={syncing}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Syncing…" : "Sync eBay"}
           </button>
         </div>
       </div>
+
+      {/* Sync result message */}
+      {syncResult && (
+        <div className="px-4 py-2.5 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+          {syncResult}
+        </div>
+      )}
 
       {/* Mock data banner */}
       {summary?.is_mock && (

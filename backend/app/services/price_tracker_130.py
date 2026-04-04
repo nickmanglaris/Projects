@@ -80,6 +80,7 @@ async def _fetch_prices_for_grade(
 
         if resp.status_code != 200:
             logger.warning(f"130point non-200 for query '{query}': {resp.status_code}")
+            logger.warning(f"130point 403 body snippet: {resp.text[:300]}")
             return None
 
         tree = HTMLParser(resp.text)

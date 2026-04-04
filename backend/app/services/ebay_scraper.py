@@ -53,6 +53,97 @@ def _parse_price(val) -> Optional[float]:
         return None
 
 
+async def fetch_psa_completed_prices(
+    player_name: str,
+    grade: int,
+    year: Optional[int] = None,
+    card_set: Optional[str] = None,
+    variation: Optional[str] = None,
+    top_n: int = 5,
+) -> Optional[float]:
+    """
+    Search eBay completed/sold listings for a specific PSA grade and return avg price.
+    Uses findCompletedItems — separate rate limit bucket from findItemsAdvanced.
+    """
+    parts = []
+    if year:
+        parts.append(str(year))
+    parts.append(player_name)
+    if card_set:
+        parts.append(card_set)
+    if variation:
+        parts.append(variation)
+    parts.append(f"PSA {grade}")
+    query = " ".join(parts)
+
+    req_key = _cache_key({"op": "completed", "q": query})
+    if req_key in _cache and _cache[req_key]["expires"] > datetime.now():
+        return _cache[req_key]["data"]
+
+    app_id = settings.EBAY_CLIENT_ID
+    if not app_id or app_id == "YOUR_CLIENT_ID_HERE":
+        return None
+
+    logger.info(f"eBay completedItems query (PSA {grade}): '{query}'")
+
+    base_params = [
+        ("OPERATION-NAME", "findCompletedItems"),
+        ("SERVICE-VERSION", "1.0.0"),
+        ("SECURITY-APPNAME", app_id),
+        ("RESPONSE-DATA-FORMAT", "JSON"),
+        ("keywords", query),
+        ("categoryId", "212"),
+        ("sortOrder", "EndTimeSoonest"),
+        ("paginationInput.pageNumber", "1"),
+        ("paginationInput.entriesPerPage", "20"),
+        ("itemFilter(0).name", "SoldItemsOnly"),
+        ("itemFilter(0).value", "true"),
+    ]
+
+    qs = urlencode(base_params, safe="()")
+    url = f"{FINDING_API}?{qs}"
+
+    prices = []
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.get(url)
+            logger.info(f"completedItems status: {resp.status_code}")
+            if not resp.is_success:
+                logger.error(f"completedItems error: {resp.text[:300]}")
+                resp.raise_for_status()
+            data = resp.json()
+
+        root = data.get("findCompletedItemsResponse", [{}])[0]
+        ack = root.get("ack", ["Failure"])[0]
+        if ack not in ("Success", "Warning"):
+            logger.warning(f"completedItems ack={ack}")
+            return None
+
+        items = root.get("searchResult", [{}])[0].get("item", [])
+        logger.info(f"completedItems returned {len(items)} items for PSA {grade}")
+
+        for item in items:
+            selling = (item.get("sellingStatus") or [{}])[0]
+            price_info = (selling.get("currentPrice") or [{}])[0]
+            p = _parse_price(price_info.get("__value__"))
+            if p and p > 1.0:
+                prices.append(p)
+
+    except Exception as e:
+        logger.error(f"eBay completedItems error: {type(e).__name__}: {e}")
+        _cache[req_key] = {"data": None, "expires": datetime.now() + timedelta(hours=1)}
+        return None
+
+    if not prices:
+        _cache[req_key] = {"data": None, "expires": datetime.now() + timedelta(hours=2)}
+        return None
+
+    avg = round(sum(prices[:top_n]) / len(prices[:top_n]), 2)
+    logger.info(f"completedItems PSA {grade} avg: ${avg} (from {len(prices[:top_n])} sales)")
+    _cache[req_key] = {"data": avg, "expires": datetime.now() + timedelta(hours=CACHE_TTL_HOURS)}
+    return avg
+
+
 async def scrape_raw_listings(
     player_name: str,
     year: Optional[int] = None,

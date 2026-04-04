@@ -130,8 +130,23 @@ async def scrape_raw_listings(
                 raise RuntimeError("ebay_rate_limited")
 
             tree = HTMLParser(resp.text)
-            items = tree.css("li.s-item")
+
+            # Try multiple selectors — eBay periodically changes structure
+            items = (
+                tree.css("li.s-item")
+                or tree.css("div.s-item")
+                or tree.css("[class*='s-item']")
+            )
             logger.info(f"eBay raw items found on page: {len(items)}")
+
+            # Debug: log HTML snippet and selector probe if nothing found
+            if len(items) == 0:
+                html_snippet = resp.text[:3000]
+                logger.warning(f"Zero items — HTML head snippet:\n{html_snippet}")
+                # Check what eBay class patterns are present
+                for probe in ["s-item", "srp-results", "b-list__item", "itmHldr", "lvresult"]:
+                    count = resp.text.count(probe)
+                    logger.info(f"  HTML occurrences of '{probe}': {count}")
 
             for item in items:
                 title_el = item.css_first(".s-item__title") or item.css_first("[class*='s-item__title']")

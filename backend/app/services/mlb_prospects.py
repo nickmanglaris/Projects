@@ -341,21 +341,34 @@ async def _find_contentful_token(client: AsyncSession, extra_urls: list[str] | N
                         logger.info(f"site-core '{keyword}' context: ...{ctx}...")
                         break  # just first occurrence
 
-            # Find space ID in bundle and log context — token is nearby even if minified
-            for idx_start in range(0, len(js)):
-                idx = js.find("iiozhi00a8lc", idx_start)
-                if idx < 0:
-                    break
+            # For the section bundle, extract API endpoint URLs
+            if "sections/prospects" in url:
+                api_urls = re.findall(
+                    r'https?://[a-zA-Z0-9.\-]+(?:mlb\.com|mlbapi\.com|statsapi)[^\s"\'<>]{0,100}',
+                    js
+                )
+                # Filter to likely API endpoints (not static assets)
+                api_endpoints = [u for u in api_urls if not any(
+                    ext in u for ext in ('.js', '.css', '.png', '.svg', '.jpg', '.woff')
+                )]
+                unique_endpoints = list(dict.fromkeys(api_endpoints))[:30]
+                logger.info(f"API endpoints in section bundle: {unique_endpoints}")
+
+                # Also search for 'prospect' in context
+                for m in re.finditer(r'prospect', js, re.IGNORECASE):
+                    ctx = js[max(0, m.start()-100):m.start()+200]
+                    if any(c in ctx for c in ('"', "'", '`', '/')):
+                        logger.info(f"'prospect' context: ...{ctx}...")
+                        break  # just first hit
+
+            # Log space ID context if found
+            idx = js.find("iiozhi00a8lc")
+            if idx >= 0:
                 ctx = js[max(0, idx - 200):idx + 400]
                 logger.info(f"Space ID context in {url[-50:]}: ...{ctx}...")
-                # Look for a 40-60 char alphanumeric token string in that context
-                token_candidates = re.findall(r'[A-Za-z0-9_\-]{40,60}', ctx)
-                token_candidates = [t for t in token_candidates if t != "iiozhi00a8lc" and len(t) >= 40]
+                token_candidates = [t for t in re.findall(r'[A-Za-z0-9_\-]{40,60}', ctx) if t != "iiozhi00a8lc"]
                 if token_candidates:
-                    logger.info(f"  -> Token candidates near space ID: {[t[:20]+'...' for t in token_candidates]}")
-                idx_start = idx + 1
-                if idx_start >= len(js):
-                    break
+                    logger.info(f"  -> Token candidates: {[t[:20]+'...' for t in token_candidates]}")
 
         except Exception as e:
             logger.warning(f"Token search failed for {url[-60:]}: {e}")

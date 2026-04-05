@@ -95,10 +95,10 @@ CONTENTFUL_BASE = f"https://cdn.contentful.com/spaces/{CONTENTFUL_SPACE}"
 
 
 async def _fetch_mlb_pipeline() -> list[dict]:
-    """Fetch and parse MLB Pipeline prospect rankings via Contentful CMS."""
+    """Fetch MLB Pipeline prospect rankings."""
     async with AsyncSession(impersonate="chrome124") as client:
 
-        # Step 1: find Contentful delivery access token from the page JS
+        # Attempt 1: find Contentful token in site-core bundle
         token = await _find_contentful_token(client)
         if token:
             logger.info(f"Found Contentful token: {token[:12]}...")
@@ -106,22 +106,55 @@ async def _fetch_mlb_pipeline() -> list[dict]:
             if prospects:
                 return prospects
 
-        # Step 2: statsapi.mlb.com with correct params
-        try:
-            for sport_id in [11, 12, 13]:
-                r = await client.get(
-                    f"https://statsapi.mlb.com/api/v1/people?sportId={sport_id}&season=2025"
-                    "&hydrate=currentTeam&fields=people,id,fullName,primaryPosition,currentTeam",
-                    timeout=15
-                )
-                logger.info(f"statsapi sportId={sport_id}: {r.status_code} | {r.text[:300]}")
-                if r.status_code == 200:
-                    break
-        except Exception as e:
-            logger.warning(f"statsapi failed: {e}")
+        # Attempt 2: MLB lookup service (older public MLB API)
+        lookup_urls = [
+            "https://lookup-service-prod.mlb.com/json/named.prospect_list.bam?sport_code=%27b%27&season=2025",
+            "https://lookup-service-prod.mlb.com/json/named.search_player_all.bam?sport_code=%27b%27&active_sw=%27Y%27&name_part=%27a%25%27",
+        ]
+        for url in lookup_urls:
+            try:
+                r = await client.get(url, timeout=15)
+                logger.info(f"lookup-service {url[-50:]}: {r.status_code} | {r.text[:400]}")
+            except Exception as e:
+                logger.warning(f"lookup-service failed: {e}")
+
+        # Attempt 3: search site-core for other bundle URLs
+        await _find_app_bundles(client)
+
+        # Attempt 4: direct MLB Pipeline API candidates
+        api_candidates = [
+            "https://www.mlb.com/milb/prospects/api/v1/prospects",
+            "https://www.mlb.com/milb/prospects/api/prospects",
+            "https://www.mlb.com/milb/prospects/api/top100",
+            "https://content.mlb.com/milb/prospects",
+            "https://statsapi.mlb.com/api/v1/draft/prospects/2025",
+        ]
+        for url in api_candidates:
+            try:
+                r = await client.get(url, timeout=10)
+                logger.info(f"API candidate {url}: {r.status_code} | {r.text[:300]}")
+            except Exception as e:
+                logger.warning(f"Candidate failed {url}: {e}")
 
         logger.warning("Could not retrieve prospect data from any source")
         return []
+
+
+async def _find_app_bundles(client: AsyncSession):
+    """Search site-core.min.js for dynamically loaded bundle URLs."""
+    try:
+        resp = await client.get(SITE_CORE_URL, timeout=30)
+        if resp.status_code != 200:
+            return
+        js = resp.text
+        # Look for chunk/bundle URLs
+        bundle_urls = re.findall(r'https?://[^\s"\'<>]+\.js[^\s"\'<>]*', js)
+        logger.info(f"Bundle URLs in site-core: {bundle_urls[:10]}")
+        # Look for any API base URL
+        api_bases = re.findall(r'https?://[^\s"\'<>]*(?:api|content|data|pipeline)[^\s"\'<>]{0,50}', js)
+        logger.info(f"API base URLs in site-core: {api_bases[:10]}")
+    except Exception as e:
+        logger.warning(f"Bundle search failed: {e}")
 
 
 SITE_CORE_URL = "https://builds.mlbstatic.com/mlb.com/builds/site-core/1758062334267/site-core.min.js"

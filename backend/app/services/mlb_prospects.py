@@ -176,7 +176,7 @@ async def _fetch_mlb_pipeline() -> list[dict]:
 
 
 async def _fetch_page_and_extract_bundles(client: AsyncSession) -> list[str]:
-    """Fetch the MLB Pipeline page, look for embedded JSON data, return JS bundle URLs."""
+    """Fetch the MLB Pipeline page, extract bundle URLs and search for Contentful token."""
     bundle_urls = []
     try:
         resp = await client.get(PROSPECTS_URL, timeout=30)
@@ -187,20 +187,46 @@ async def _fetch_page_and_extract_bundles(client: AsyncSession) -> list[str]:
         html = resp.text
         tree = HTMLParser(html)
 
-        # Look for embedded JSON / __NEXT_DATA__
         for tag in tree.css("script"):
             src = tag.attributes.get("src") or ""
-            # Collect JS bundles hosted on mlbstatic.com
+            # Fix protocol-relative URLs
+            if src.startswith("//"):
+                src = "https:" + src
             if "mlbstatic.com" in src and src.endswith(".js"):
                 bundle_urls.append(src)
-            # Look for inline JSON that might contain prospect data
+
             text = tag.text(strip=True)
-            if text and ("prospect" in text.lower() or "pipeline" in text.lower()):
-                logger.info(f"Inline script with prospects keyword: {text[:400]}")
+            if not text:
+                continue
+
+            # Search ALL inline scripts for access token patterns
+            for pattern in TOKEN_PATTERNS:
+                matches = re.findall(pattern, text, re.IGNORECASE)
+                candidates = [m for m in matches if len(m) > 20]
+                if candidates:
+                    logger.info(f"TOKEN FOUND IN PAGE HTML ({pattern[:40]}): {candidates[0][:20]}...")
+
+            # Log full window.__XXX__ assignments that mention contentful/token
+            if "accessToken" in text or "deliveryToken" in text or "contentful" in text.lower():
+                logger.info(f"Contentful ref in inline script (first 2000 chars): {text[:2000]}")
+
+            # Find the section bundle build ID
+            build_match = re.search(r'builds\.mlbstatic\.com[^"\']*?/(\d{13})/', text)
+            if build_match:
+                logger.info(f"Build ID found: {build_match.group(1)}")
 
         logger.info(f"Found {len(bundle_urls)} mlbstatic JS bundles in page HTML")
-        if bundle_urls:
-            logger.info(f"Bundle URLs: {bundle_urls[:5]}")
+        logger.info(f"Bundle URLs: {bundle_urls}")
+
+        # Also search for the section bundle URL pattern in the raw HTML
+        section_bundles = re.findall(
+            r'https?://builds\.mlbstatic\.com[^\s"\'<>]+\.(?:js|bundle)[^\s"\'<>]*',
+            html
+        )
+        for url in section_bundles:
+            if url not in bundle_urls:
+                bundle_urls.append(url)
+                logger.info(f"Extra bundle from HTML scan: {url}")
 
     except Exception as e:
         logger.warning(f"Page fetch failed: {e}")

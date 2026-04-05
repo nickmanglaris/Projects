@@ -210,9 +210,19 @@ async def _fetch_page_and_extract_bundles(client: AsyncSession) -> list[str]:
             if "accessToken" in text or "deliveryToken" in text or "contentful" in text.lower():
                 logger.info(f"Contentful ref in inline script (first 2000 chars): {text[:2000]}")
 
-            # Log the full script that sets up sectionJS (contains base URL for section bundle)
+            # Extract the section bundle URL from the loader script
             if "sectionJS" in text or "index.bundle" in text:
-                logger.info(f"sectionJS script (full, first 3000): {text[:3000]}")
+                m = re.search(
+                    r"((?:https?:)?//builds\.mlbstatic\.com/mlb\.com/sections/[^\s'\"]+index\.bundle\.js)",
+                    text
+                )
+                if m:
+                    url = m.group(1)
+                    if url.startswith("//"):
+                        url = "https:" + url
+                    logger.info(f"Section bundle URL extracted: {url}")
+                    if url not in bundle_urls:
+                        bundle_urls.append(url)
 
             # Find the section bundle build ID
             build_match = re.search(r'builds\.mlbstatic\.com[^"\']*?/(\d{13})/', text)

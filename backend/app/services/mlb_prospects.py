@@ -93,52 +93,63 @@ async def fetch_and_store_prospects(db: DBSession) -> int:
 async def _fetch_mlb_pipeline() -> list[dict]:
     """Fetch and parse MLB Pipeline prospect rankings."""
     async with AsyncSession(impersonate="chrome124") as client:
-        resp = await client.get(PROSPECTS_URL, timeout=20)
+        resp = await client.get(PROSPECTS_URL, timeout=30)
         logger.info(f"MLB Pipeline status: {resp.status_code} | size: {len(resp.text)} chars")
 
         if resp.status_code != 200:
             logger.error(f"MLB Pipeline non-200: {resp.status_code}")
-            logger.error(f"Body snippet: {resp.text[:500]}")
             return []
 
         html = resp.text
 
-        # Attempt 1: parse __NEXT_DATA__ JSON blob (Next.js apps embed page data here)
-        match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html, re.DOTALL)
-        if match:
+        # Search full HTML for API endpoint URLs containing prospect-related paths
+        api_patterns = re.findall(
+            r'["\'](https?://[^\s"\'<>]*(?:prospect|pipeline|ranking|top.?100|milb)[^\s"\'<>]*)["\']',
+            html, re.IGNORECASE
+        )
+        if api_patterns:
+            logger.info(f"Found potential API URLs: {api_patterns[:10]}")
+
+        # Also search for statsapi references
+        statsapi_patterns = re.findall(r'["\'](https?://statsapi[^\s"\'<>]+)["\']', html)
+        if statsapi_patterns:
+            logger.info(f"Found statsapi URLs: {statsapi_patterns[:10]}")
+
+        # Search for fetch/ajax calls with relative paths
+        relative_patterns = re.findall(
+            r'(?:fetch|axios|xhr|url)\s*[:(]\s*["\']([/][^\s"\'<>]*(?:prospect|pipeline|ranking)[^\s"\'<>]*)["\']',
+            html, re.IGNORECASE
+        )
+        if relative_patterns:
+            logger.info(f"Found relative API paths: {relative_patterns[:10]}")
+
+        # Try known statsapi endpoint for minor league players with prospect hydration
+        try:
+            prospect_resp = await client.get(
+                "https://statsapi.mlb.com/api/v1/people?sportIds=11,12,13&season=2025"
+                "&hydrate=currentTeam,team,educationLevel&fields=people,id,fullName,"
+                "primaryPosition,currentTeam,mlbDebutDate",
+                timeout=20
+            )
+            logger.info(f"statsapi people status: {prospect_resp.status_code} | size: {len(prospect_resp.text)}")
+            if prospect_resp.status_code == 200:
+                logger.info(f"statsapi people snippet: {prospect_resp.text[:500]}")
+        except Exception as e:
+            logger.warning(f"statsapi test failed: {e}")
+
+        # Try a candidate MLB content API
+        for candidate in [
+            "https://www.mlb.com/milb/prospects/top-100-prospects",
+            "https://www.mlb.com/data/prospects.json",
+            "https://www.mlb.com/milb/data/prospects/pipeline.json",
+        ]:
             try:
-                next_data = json.loads(match.group(1))
-                prospects = _parse_next_data(next_data)
-                if prospects:
-                    logger.info(f"Parsed {len(prospects)} prospects from __NEXT_DATA__")
-                    return prospects
+                r = await client.get(candidate, timeout=10)
+                logger.info(f"Candidate {candidate}: {r.status_code} | {len(r.text)} chars | snippet: {r.text[:200]}")
             except Exception as e:
-                logger.warning(f"Failed to parse __NEXT_DATA__: {e}")
+                logger.warning(f"Candidate {candidate} failed: {e}")
 
-        # Attempt 2: look for inline JSON arrays with prospect-like data
-        json_matches = re.findall(r'window\.__.*?=\s*(\{.*?\});', html, re.DOTALL)
-        for jm in json_matches:
-            try:
-                data = json.loads(jm)
-                prospects = _extract_prospects_from_dict(data)
-                if prospects:
-                    logger.info(f"Parsed {len(prospects)} prospects from inline JSON")
-                    return prospects
-            except Exception:
-                continue
-
-        # Attempt 3: look for any JSON array containing prospect-like objects
-        # Log a snippet so we can see what we're working with
-        tree = HTMLParser(html)
-        script_tags = tree.css("script")
-        logger.info(f"Found {len(script_tags)} script tags on page")
-        for tag in script_tags[:5]:
-            content = tag.text(strip=True)
-            if content and len(content) > 100:
-                logger.info(f"Script tag snippet: {content[:200]}")
-
-        logger.warning("Could not extract prospect data — logging first 1000 chars of HTML for debugging")
-        logger.warning(f"HTML snippet: {html[:1000]}")
+        logger.warning("Could not extract prospect data yet — see logs above for API discovery")
         return []
 
 

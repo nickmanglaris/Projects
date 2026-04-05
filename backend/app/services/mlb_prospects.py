@@ -210,6 +210,10 @@ async def _fetch_page_and_extract_bundles(client: AsyncSession) -> list[str]:
             if "accessToken" in text or "deliveryToken" in text or "contentful" in text.lower():
                 logger.info(f"Contentful ref in inline script (first 2000 chars): {text[:2000]}")
 
+            # Log the full script that sets up sectionJS (contains base URL for section bundle)
+            if "sectionJS" in text or "index.bundle" in text:
+                logger.info(f"sectionJS script (full, first 3000): {text[:3000]}")
+
             # Find the section bundle build ID
             build_match = re.search(r'builds\.mlbstatic\.com[^"\']*?/(\d{13})/', text)
             if build_match:
@@ -311,6 +315,18 @@ async def _find_contentful_token(client: AsyncSession, extra_urls: list[str] | N
                     if candidates:
                         logger.info(f"Token candidates in {url[-40:]} ({pattern[:40]}): {[c[:16]+'...' for c in candidates[:3]]}")
                         return candidates[0]
+
+            # For site-core, look for section bundle URLs and milb/prospects references
+            if "site-core" in url:
+                # Find all builds.mlbstatic.com URLs in the loader
+                build_urls = re.findall(r'https?://builds\.mlbstatic\.com[^\s"\'<>]+', js)
+                logger.info(f"builds.mlbstatic.com URLs in site-core: {build_urls[:10]}")
+                # Look for 'milb' or 'prospects' context
+                for keyword in ("milb", "prospects", "pipeline"):
+                    for m in re.finditer(keyword, js, re.IGNORECASE):
+                        ctx = js[max(0, m.start()-80):m.start()+200]
+                        logger.info(f"site-core '{keyword}' context: ...{ctx}...")
+                        break  # just first occurrence
 
             # Log space ID context if found
             idx = js.find("iiozhi00a8lc")

@@ -196,9 +196,24 @@ def parse_excel(content: bytes, bank_name: str = "generic") -> list[dict]:
         col_desc = _find_col(df, profile["desc"])
         col_amount = _find_col(df, profile["amount"])
     else:
-        col_date = _find_col(df, "date") or _find_col(df, "transaction date") or df.columns[0]
-        col_desc = _find_col(df, "description") or _find_col(df, "memo") or df.columns[1]
-        col_amount = _find_col(df, "amount") or _find_col(df, "debit") or df.columns[2]
+        # Try all common date column names including "Trans. Date" and "Posting Date"
+        col_date = (
+            _find_col(df, "Trans. Date") or
+            _find_col(df, "Transaction Date") or
+            _find_col(df, "Posting Date") or
+            _find_col(df, "Date") or
+            df.columns[0]
+        )
+        col_desc = (
+            _find_col(df, "Description") or
+            _find_col(df, "Memo") or
+            df.columns[2]
+        )
+        col_amount = (
+            _find_col(df, "Amount") or
+            _find_col(df, "Debit") or
+            df.columns[3]
+        )
 
     lines = []
     for _, row in df.iterrows():

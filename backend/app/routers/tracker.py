@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -168,15 +170,13 @@ async def fetch_grading_prices(sub_id: int, db: AsyncSession = Depends(get_db)):
     if not sub.player_name or not sub.year or not sub.card_set:
         raise HTTPException(status_code=400, detail="player_name, year, and card_set are required to fetch prices")
 
-    from app.services.price_tracker_130 import fetch_130point_prices
-    prices = await fetch_130point_prices(
-        player_name=sub.player_name,
-        year=sub.year,
-        card_set=sub.card_set,
-        variation=sub.variation,
+    from app.services.ebay_scraper import fetch_psa_completed_prices
+    psa10, psa9 = await asyncio.gather(
+        fetch_psa_completed_prices(sub.player_name, 10, sub.year, sub.card_set, sub.variation),
+        fetch_psa_completed_prices(sub.player_name, 9, sub.year, sub.card_set, sub.variation),
     )
-    sub.psa10_estimate = prices.get("psa10")
-    sub.psa9_estimate = prices.get("psa9")
+    sub.psa10_estimate = psa10
+    sub.psa9_estimate = psa9
     await db.commit()
     await db.refresh(sub)
     return sub

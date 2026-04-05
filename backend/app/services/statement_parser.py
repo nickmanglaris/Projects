@@ -185,9 +185,46 @@ def parse_pdf(content: bytes, bank_name: str = "generic") -> list[dict]:
     return lines
 
 
-def parse_statement(content: bytes, filename: str, bank_name: str = "generic") -> list[dict]:
-    """Entry point: dispatch to CSV or PDF parser based on filename."""
-    if filename.lower().endswith(".pdf"):
-        return parse_pdf(content, bank_name)
+def parse_excel(content: bytes, bank_name: str = "generic") -> list[dict]:
+    """Parse an Excel bank statement (.xlsx / .xls) into a list of line dicts."""
+    profile = BANK_PROFILES.get(bank_name.lower())
+    df = pd.read_excel(io.BytesIO(content))
+    df.columns = df.columns.str.strip().str.replace(r'\s+', ' ', regex=True)
+
+    if profile:
+        col_date = _find_col(df, profile["date"])
+        col_desc = _find_col(df, profile["desc"])
+        col_amount = _find_col(df, profile["amount"])
     else:
-        return parse_csv(content, bank_name)
+        col_date = _find_col(df, "date") or _find_col(df, "transaction date") or df.columns[0]
+        col_desc = _find_col(df, "description") or _find_col(df, "memo") or df.columns[1]
+        col_amount = _find_col(df, "amount") or _find_col(df, "debit") or df.columns[2]
+
+    lines = []
+    for _, row in df.iterrows():
+        raw_date = str(row.get(col_date, ""))
+        raw_desc = str(row.get(col_desc, ""))
+        raw_amount = row.get(col_amount)
+
+        parsed_date = _parse_date(raw_date)
+        amount = _normalize_amount(raw_amount)
+        if amount is None:
+            continue
+
+        lines.append({
+            "line_date": parsed_date,
+            "description": raw_desc.strip(),
+            "amount": amount,
+            "category": _classify(raw_desc, amount),
+        })
+    return lines
+
+
+def parse_statement(content: bytes, filename: str, bank_name: str = "generic") -> list[dict]:
+    """Entry point: dispatch to CSV, Excel, or PDF parser based on filename."""
+    lower = filename.lower()
+    if lower.endswith(".pdf"):
+        return parse_pdf(content, bank_name)
+    if lower.endswith(".xlsx") or lower.endswith(".xls"):
+        return parse_excel(content, bank_name)
+    return parse_csv(content, bank_name)

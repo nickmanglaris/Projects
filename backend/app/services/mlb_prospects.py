@@ -90,67 +90,126 @@ async def fetch_and_store_prospects(db: DBSession) -> int:
     return count
 
 
-async def _fetch_mlb_pipeline() -> list[dict]:
-    """Fetch and parse MLB Pipeline prospect rankings."""
-    async with AsyncSession(impersonate="chrome124") as client:
-        resp = await client.get(PROSPECTS_URL, timeout=30)
-        logger.info(f"MLB Pipeline status: {resp.status_code} | size: {len(resp.text)} chars")
+CONTENTFUL_SPACE = "iiozhi00a8lc"
+CONTENTFUL_BASE = f"https://cdn.contentful.com/spaces/{CONTENTFUL_SPACE}"
 
+
+async def _fetch_mlb_pipeline() -> list[dict]:
+    """Fetch and parse MLB Pipeline prospect rankings via Contentful CMS."""
+    async with AsyncSession(impersonate="chrome124") as client:
+
+        # Step 1: find Contentful delivery access token from the page JS
+        token = await _find_contentful_token(client)
+        if token:
+            logger.info(f"Found Contentful token: {token[:12]}...")
+            prospects = await _fetch_from_contentful(client, token)
+            if prospects:
+                return prospects
+
+        # Step 2: statsapi.mlb.com with correct params
+        try:
+            for sport_id in [11, 12, 13]:
+                r = await client.get(
+                    f"https://statsapi.mlb.com/api/v1/people?sportId={sport_id}&season=2025"
+                    "&hydrate=currentTeam&fields=people,id,fullName,primaryPosition,currentTeam",
+                    timeout=15
+                )
+                logger.info(f"statsapi sportId={sport_id}: {r.status_code} | {r.text[:300]}")
+                if r.status_code == 200:
+                    break
+        except Exception as e:
+            logger.warning(f"statsapi failed: {e}")
+
+        logger.warning("Could not retrieve prospect data from any source")
+        return []
+
+
+async def _find_contentful_token(client: AsyncSession) -> Optional[str]:
+    """Search the top-100-prospects page JS for the Contentful delivery API token."""
+    try:
+        resp = await client.get(
+            "https://www.mlb.com/milb/prospects/top-100-prospects", timeout=20
+        )
+        logger.info(f"top-100 page: {resp.status_code} | {len(resp.text)} chars")
         if resp.status_code != 200:
-            logger.error(f"MLB Pipeline non-200: {resp.status_code}")
-            return []
+            return None
 
         html = resp.text
 
-        # Search full HTML for API endpoint URLs containing prospect-related paths
-        api_patterns = re.findall(
-            r'["\'](https?://[^\s"\'<>]*(?:prospect|pipeline|ranking|top.?100|milb)[^\s"\'<>]*)["\']',
-            html, re.IGNORECASE
+        # Contentful delivery tokens are 43-char alphanumeric strings
+        # They typically appear next to "accessToken", "delivery", or "contentful"
+        patterns = [
+            r'accessToken["\s:]+["\']([A-Za-z0-9_\-]{20,50})["\']',
+            r'deliveryToken["\s:]+["\']([A-Za-z0-9_\-]{20,50})["\']',
+            r'contentful[^"\']*["\']([A-Za-z0-9_\-]{40,50})["\']',
+            r'CONTENTFUL_ACCESS_TOKEN["\s:=]+["\']([A-Za-z0-9_\-]{20,50})["\']',
+            r'"token"\s*:\s*"([A-Za-z0-9_\-]{40,50})"',
+        ]
+        for pattern in patterns:
+            matches = re.findall(pattern, html, re.IGNORECASE)
+            if matches:
+                logger.info(f"Token candidates from pattern '{pattern}': {matches[:3]}")
+                return matches[0]
+
+        # Also log any JS src URLs so we can fetch bundles
+        js_srcs = re.findall(r'src=["\']([^"\']+\.js[^"\']*)["\']', html)
+        logger.info(f"JS bundles found: {js_srcs[:5]}")
+
+    except Exception as e:
+        logger.warning(f"Token search failed: {e}")
+    return None
+
+
+async def _fetch_from_contentful(client: AsyncSession, token: str) -> list[dict]:
+    """Query Contentful for prospect entries."""
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # First get available content types
+    try:
+        ct_resp = await client.get(
+            f"{CONTENTFUL_BASE}/content_types?limit=50",
+            headers=headers, timeout=15
         )
-        if api_patterns:
-            logger.info(f"Found potential API URLs: {api_patterns[:10]}")
+        logger.info(f"Contentful content_types: {ct_resp.status_code} | {ct_resp.text[:500]}")
+    except Exception as e:
+        logger.warning(f"Contentful content_types failed: {e}")
 
-        # Also search for statsapi references
-        statsapi_patterns = re.findall(r'["\'](https?://statsapi[^\s"\'<>]+)["\']', html)
-        if statsapi_patterns:
-            logger.info(f"Found statsapi URLs: {statsapi_patterns[:10]}")
-
-        # Search for fetch/ajax calls with relative paths
-        relative_patterns = re.findall(
-            r'(?:fetch|axios|xhr|url)\s*[:(]\s*["\']([/][^\s"\'<>]*(?:prospect|pipeline|ranking)[^\s"\'<>]*)["\']',
-            html, re.IGNORECASE
-        )
-        if relative_patterns:
-            logger.info(f"Found relative API paths: {relative_patterns[:10]}")
-
-        # Try known statsapi endpoint for minor league players with prospect hydration
+    # Try common content type names for prospects
+    for ct in ["prospect", "prospectsPlayer", "mlbPlayer", "player", "pipelinePlayer"]:
         try:
-            prospect_resp = await client.get(
-                "https://statsapi.mlb.com/api/v1/people?sportIds=11,12,13&season=2025"
-                "&hydrate=currentTeam,team,educationLevel&fields=people,id,fullName,"
-                "primaryPosition,currentTeam,mlbDebutDate",
-                timeout=20
+            r = await client.get(
+                f"{CONTENTFUL_BASE}/entries?content_type={ct}&limit=200&order=fields.rank",
+                headers=headers, timeout=15
             )
-            logger.info(f"statsapi people status: {prospect_resp.status_code} | size: {len(prospect_resp.text)}")
-            if prospect_resp.status_code == 200:
-                logger.info(f"statsapi people snippet: {prospect_resp.text[:500]}")
+            logger.info(f"Contentful content_type={ct}: {r.status_code} | {r.text[:300]}")
+            if r.status_code == 200:
+                data = r.json()
+                items = data.get("items", [])
+                if items:
+                    logger.info(f"Found {len(items)} items with content_type={ct}")
+                    return [_normalize_contentful_item(i) for i in items if _normalize_contentful_item(i)]
         except Exception as e:
-            logger.warning(f"statsapi test failed: {e}")
+            logger.warning(f"Contentful ct={ct} failed: {e}")
 
-        # Try a candidate MLB content API
-        for candidate in [
-            "https://www.mlb.com/milb/prospects/top-100-prospects",
-            "https://www.mlb.com/data/prospects.json",
-            "https://www.mlb.com/milb/data/prospects/pipeline.json",
-        ]:
-            try:
-                r = await client.get(candidate, timeout=10)
-                logger.info(f"Candidate {candidate}: {r.status_code} | {len(r.text)} chars | snippet: {r.text[:200]}")
-            except Exception as e:
-                logger.warning(f"Candidate {candidate} failed: {e}")
+    return []
 
-        logger.warning("Could not extract prospect data yet — see logs above for API discovery")
-        return []
+
+def _normalize_contentful_item(item: dict) -> Optional[dict]:
+    fields = item.get("fields", {})
+    if not fields:
+        return None
+    name = fields.get("name") or fields.get("playerName") or fields.get("fullName")
+    if not name:
+        return None
+    return {
+        "name": name,
+        "rank": fields.get("rank") or fields.get("ranking"),
+        "position": fields.get("position") or fields.get("pos"),
+        "team": fields.get("team") or fields.get("organization") or fields.get("org"),
+        "grade": fields.get("grade") or fields.get("fv") or fields.get("scoutingGrade"),
+        "eta": fields.get("eta") or fields.get("mlbEta"),
+        "mlb_id": fields.get("mlbId") or fields.get("playerId"),
+    }
 
 
 def _parse_next_data(data: dict) -> list[dict]:

@@ -6,12 +6,12 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { api } from "@/lib/api";
-import { WatchlistEntry, PriceHistoryOut, GradingSubmission } from "@/lib/types";
+import { WatchlistEntry, PriceHistoryOut } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
-import { Plus, Trash2, RefreshCw, Loader2, TrendingUp, TrendingDown, Pencil, X } from "lucide-react";
+import { Plus, Trash2, RefreshCw, Loader2, TrendingUp, TrendingDown } from "lucide-react";
 
 // ── Status badge ────────────────────────────────────────────────────────────
 const STATUS_COLORS: Record<string, string> = {
@@ -57,50 +57,22 @@ const watchlistSchema = z.object({
   grade: z.string(),
 });
 
-const gradingSchema = z.object({
-  player_name: z.string().min(1),
-  year: z.string().optional(),
-  card_set: z.string().min(1),
-  variation: z.string().optional(),
-  card_number: z.string().optional(),
-  psa_order_number: z.string().optional(),
-  submitted_date: z.string().optional(),
-  estimated_return: z.string().optional(),
-  purchase_price: z.string().optional(),
-  grading_fee: z.string().optional(),
-  notes: z.string().optional(),
-});
-
 type WatchlistForm = z.infer<typeof watchlistSchema>;
-type GradingForm = z.infer<typeof gradingSchema>;
-
-const STATUSES = ["submitted", "received", "grading", "graded", "shipped", "returned"];
 
 // ── Page ────────────────────────────────────────────────────────────────────
 export default function TrackerPage() {
-  // Watchlist state
   const [showWlForm, setShowWlForm] = useState(false);
   const [addingWl, setAddingWl] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
-  // Grading state
-  const [showGrForm, setShowGrForm] = useState(false);
-  const [addingGr, setAddingGr] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-
   const { data: watchlist, isLoading: wlLoading, mutate: mutateWl } =
     useSWR<WatchlistEntry[]>("/tracker/watchlist", { refreshInterval: 60000 });
-
-  const { data: grading, isLoading: grLoading, mutate: mutateGr } =
-    useSWR<GradingSubmission[]>("/tracker/grading");
 
   const wlForm = useForm<WatchlistForm>({
     resolver: zodResolver(watchlistSchema),
     defaultValues: { grade: "PSA 10" },
   });
-
-  const grForm = useForm<GradingForm>({ resolver: zodResolver(gradingSchema) });
 
   // ── Watchlist handlers ──────────────────────────────────────────────────
   async function onAddWatchlist(data: WatchlistForm) {
@@ -140,44 +112,6 @@ export default function TrackerPage() {
     } finally {
       setRefreshing(false);
     }
-  }
-
-  // ── Grading handlers ────────────────────────────────────────────────────
-  async function onAddGrading(data: GradingForm) {
-    setAddingGr(true);
-    try {
-      await api.post("/tracker/grading", {
-        player_name: data.player_name,
-        year: data.year ? parseInt(data.year) : undefined,
-        card_set: data.card_set,
-        variation: data.variation || undefined,
-        card_number: data.card_number || undefined,
-        psa_order_number: data.psa_order_number || undefined,
-        submitted_date: data.submitted_date || undefined,
-        estimated_return: data.estimated_return || undefined,
-        purchase_price: data.purchase_price ? parseFloat(data.purchase_price) : undefined,
-        grading_fee: data.grading_fee ? parseFloat(data.grading_fee) : undefined,
-        notes: data.notes || undefined,
-      });
-      await mutateGr();
-      grForm.reset();
-      setShowGrForm(false);
-    } catch (e: unknown) {
-      alert("Failed to add: " + (e instanceof Error ? e.message : "error"));
-    } finally {
-      setAddingGr(false);
-    }
-  }
-
-  async function patchGrading(id: number, patch: Record<string, unknown>) {
-    await api.patch(`/tracker/grading/${id}`, patch);
-    await mutateGr();
-  }
-
-  async function deleteGrading(id: number) {
-    if (!confirm("Delete this submission?")) return;
-    await api.delete(`/tracker/grading/${id}`);
-    await mutateGr();
   }
 
   // ── Field helpers ───────────────────────────────────────────────────────
@@ -319,129 +253,6 @@ export default function TrackerPage() {
         </div>
       </section>
 
-      {/* ═══════════════ CARDS AT PSA ════════════════════════════════════ */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-xl font-bold text-slate-100">Cards at PSA</h2>
-            <p className="text-sm text-slate-500 mt-0.5">Track cards sent out for grading</p>
-          </div>
-          <button onClick={() => { setShowGrForm(v => !v); grForm.reset(); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-orange-500 text-white hover:bg-orange-600">
-            <Plus className="w-4 h-4" /> Add Submission
-          </button>
-        </div>
-
-        {showGrForm && (
-          <div className="bg-slate-900 rounded-xl border border-slate-700 p-5 mb-4">
-            <h3 className="text-sm font-semibold text-slate-300 mb-4">New Grading Submission</h3>
-            <form onSubmit={grForm.handleSubmit(onAddGrading)} className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div>{lbl("Player Name", true)}<input {...grForm.register("player_name")} placeholder="Shohei Ohtani" className={inp} /></div>
-              <div>{lbl("Year")}<input {...grForm.register("year")} type="number" placeholder="2018" className={inp} /></div>
-              <div>{lbl("Card Set", true)}<input {...grForm.register("card_set")} placeholder="Bowman Chrome" className={inp} /></div>
-              <div>{lbl("Variation / Parallel")}<input {...grForm.register("variation")} placeholder="Refractor" className={inp} /></div>
-              <div>{lbl("Card #")}<input {...grForm.register("card_number")} placeholder="BCP-1" className={inp} /></div>
-              <div>{lbl("PSA Order #")}<input {...grForm.register("psa_order_number")} placeholder="PSA submission ID" className={inp} /></div>
-              <div>{lbl("Submitted Date")}<input {...grForm.register("submitted_date")} type="date" className={inp} /></div>
-              <div>{lbl("Est. Return Date")}<input {...grForm.register("estimated_return")} type="date" className={inp} /></div>
-              <div>{lbl("Purchase Price")}<input {...grForm.register("purchase_price")} type="number" step="0.01" placeholder="0.00" className={inp} /></div>
-              <div>{lbl("Grading Fee")}<input {...grForm.register("grading_fee")} type="number" step="0.01" placeholder="0.00" className={inp} /></div>
-              <div className="col-span-2">{lbl("Notes")}<input {...grForm.register("notes")} placeholder="Optional notes" className={inp} /></div>
-              <div className="col-span-2 sm:col-span-3 flex justify-end gap-2">
-                <button type="button" onClick={() => setShowGrForm(false)} className="px-4 py-2 text-sm border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-800">Cancel</button>
-                <button type="submit" disabled={addingGr} className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600 disabled:opacity-50">
-                  {addingGr && <Loader2 className="w-4 h-4 animate-spin" />} Add Submission
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        <div className="bg-slate-900 rounded-xl border border-slate-700">
-          {grLoading ? (
-            <div className="p-8 text-center text-slate-500"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading...</div>
-          ) : !grading?.length ? (
-            <div className="p-8 text-center">
-              <p className="text-slate-500 text-sm mb-3">No cards currently at PSA.</p>
-              <button onClick={() => setShowGrForm(true)} className="px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600">Add first submission</button>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-800 border-b border-slate-700">
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase">Card</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase">Status</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-400 uppercase">Grade</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase">Submitted</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase">Est. Return</th>
-                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-400 uppercase">Cost</th>
-                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-400 uppercase">Fee</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-400 uppercase"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-700/50">
-                  {grading.map((sub) => (
-                    <tr key={sub.id} className="hover:bg-slate-800/50">
-                      <td className="px-3 py-2.5">
-                        <div className="font-medium text-slate-100">{sub.player_name}</div>
-                        <div className="text-xs text-slate-500">
-                          {[sub.year, sub.card_set, sub.variation].filter(Boolean).join(" · ")}
-                          {sub.card_number && <span className="ml-1 text-slate-600">#{sub.card_number}</span>}
-                        </div>
-                        {sub.psa_order_number && <div className="text-xs text-slate-500">Order: {sub.psa_order_number}</div>}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        {editingId === sub.id ? (
-                          <select defaultValue={sub.status}
-                            onChange={(e) => patchGrading(sub.id, { status: e.target.value })}
-                            className="text-xs bg-slate-800 border border-slate-700 text-slate-200 rounded px-1.5 py-1">
-                            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                        ) : (
-                          <StatusBadge status={sub.status} />
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 text-center">
-                        {editingId === sub.id ? (
-                          <input type="number" min="1" max="10"
-                            defaultValue={sub.grade_received ?? ""}
-                            placeholder="1-10"
-                            className="w-14 text-xs bg-slate-800 border border-slate-700 text-slate-200 rounded px-1 py-1 text-center"
-                            onBlur={(e) => {
-                              const g = e.target.value;
-                              if (g) patchGrading(sub.id, { grade_received: parseInt(g), status: "returned" });
-                            }} />
-                        ) : (
-                          sub.grade_received
-                            ? <span className="font-bold text-green-400">PSA {sub.grade_received}</span>
-                            : <span className="text-slate-600">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-slate-400">{sub.submitted_date ?? "—"}</td>
-                      <td className="px-3 py-2.5 text-xs text-slate-400">{sub.estimated_return ?? "—"}</td>
-                      <td className="px-3 py-2.5 text-right font-mono text-xs"><Price value={sub.purchase_price} /></td>
-                      <td className="px-3 py-2.5 text-right font-mono text-xs"><Price value={sub.grading_fee} /></td>
-                      <td className="px-3 py-2.5 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button onClick={() => setEditingId(editingId === sub.id ? null : sub.id)}
-                            className="p-1 text-slate-500 hover:text-orange-400 rounded" title="Edit">
-                            {editingId === sub.id ? <X className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
-                          </button>
-                          <button onClick={() => deleteGrading(sub.id)}
-                            className="p-1 text-slate-500 hover:text-red-400 rounded" title="Delete">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </section>
     </div>
   );
 }

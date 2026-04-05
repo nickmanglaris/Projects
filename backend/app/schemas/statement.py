@@ -38,5 +38,6 @@ class UploadResponse(BaseModel):
 class ReconcileResponse(BaseModel):
     upload_id: int
     matched: int
-    unmatched: int
+    created: int
+    skipped: int
     total: int

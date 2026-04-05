@@ -11,6 +11,7 @@ import {
   Package,
   Settings,
   Award,
+  Receipt,
 } from "lucide-react";
 
 const nav = [
@@ -20,6 +21,7 @@ const nav = [
   { href: "/research", label: "Research", icon: Search },
   { href: "/prospects", label: "Prospects", icon: TrendingUp },
   { href: "/tracker", label: "Price Tracker", icon: LineChart },
+  { href: "/transactions", label: "Transactions", icon: Receipt },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

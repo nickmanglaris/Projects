@@ -5,7 +5,7 @@ import useSWR from "swr";
 import { api } from "@/lib/api";
 import { GradingSubmission, TransactionListResponse } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
-import { Plus, Trash2, Pencil, X, AlertCircle, Loader2 } from "lucide-react";
+import { Plus, Trash2, Pencil, X, AlertCircle, Loader2, Zap } from "lucide-react";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -74,6 +74,7 @@ export default function GradingPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [fetchingPriceId, setFetchingPriceId] = useState<number | null>(null);
 
   const { data: submissions, isLoading, mutate } = useSWR<GradingSubmission[]>("/tracker/grading");
   const { data: purchasesData } = useSWR<TransactionListResponse>(
@@ -153,6 +154,18 @@ export default function GradingPage() {
     if (!confirm("Delete this submission?")) return;
     await api.delete(`/tracker/grading/${id}`);
     await mutate();
+  }
+
+  async function fetchPrices(id: number) {
+    setFetchingPriceId(id);
+    try {
+      await api.post(`/tracker/grading/${id}/fetch-prices`);
+      await mutate();
+    } catch {
+      alert("Failed to fetch prices — check that player, year, and card set are filled in.");
+    } finally {
+      setFetchingPriceId(null);
+    }
   }
 
   const incomplete = submissions?.filter((s) => !isComplete(s)) ?? [];
@@ -317,6 +330,8 @@ export default function GradingPage() {
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase">Est. Return</th>
                   <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-400 uppercase">Cost</th>
                   <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-400 uppercase">Fee</th>
+                  <th className="px-3 py-2.5 text-right text-xs font-semibold text-green-400 uppercase">PSA 10 Est.</th>
+                  <th className="px-3 py-2.5 text-right text-xs font-semibold text-blue-400 uppercase">PSA 9 Est.</th>
                   <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-400 uppercase"></th>
                 </tr>
               </thead>
@@ -374,6 +389,33 @@ export default function GradingPage() {
                     </td>
                     <td className="px-3 py-2.5 text-right font-mono text-xs text-slate-300">
                       {sub.grading_fee ? formatCurrency(sub.grading_fee) : <span className="text-slate-600">—</span>}
+                    </td>
+                    {/* PSA 10 Estimate */}
+                    <td className="px-3 py-2.5 text-right">
+                      {!isComplete(sub) ? (
+                        <span className="text-slate-600 text-xs">—</span>
+                      ) : sub.psa10_estimate ? (
+                        <span className="font-mono text-xs text-green-400">{formatCurrency(sub.psa10_estimate)}</span>
+                      ) : (
+                        <button
+                          onClick={() => fetchPrices(sub.id)}
+                          disabled={fetchingPriceId === sub.id}
+                          className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 disabled:opacity-50 ml-auto"
+                        >
+                          {fetchingPriceId === sub.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                          Fetch
+                        </button>
+                      )}
+                    </td>
+                    {/* PSA 9 Estimate */}
+                    <td className="px-3 py-2.5 text-right">
+                      {!isComplete(sub) ? (
+                        <span className="text-slate-600 text-xs">—</span>
+                      ) : sub.psa9_estimate ? (
+                        <span className="font-mono text-xs text-blue-400">{formatCurrency(sub.psa9_estimate)}</span>
+                      ) : (
+                        <span className="text-slate-600 text-xs">—</span>
+                      )}
                     </td>
                     <td className="px-3 py-2.5 text-center">
                       <div className="flex items-center justify-center gap-1">

@@ -33,6 +33,8 @@ async def _run_migrations():
         ("price_history", "psa10_price", "REAL"),
         ("price_history", "psa9_price", "REAL"),
         ("price_history", "psa8_price", "REAL"),
+        ("grading_submissions", "psa10_estimate", "REAL"),
+        ("grading_submissions", "psa9_estimate", "REAL"),
     ]
 
     async with engine.connect() as conn:

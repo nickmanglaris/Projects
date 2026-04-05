@@ -143,6 +143,8 @@ export interface GradingSubmission {
   grading_fee?: number;
   notes?: string;
   created_at: string;
+  psa10_estimate?: number;
+  psa9_estimate?: number;
 }
 
 export interface InventoryListing {

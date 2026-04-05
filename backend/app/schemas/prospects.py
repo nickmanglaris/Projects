@@ -107,5 +107,7 @@ class GradingSubmissionOut(BaseModel):
     grading_fee: Optional[float] = None
     notes: Optional[str] = None
     created_at: datetime
+    psa10_estimate: Optional[float] = None
+    psa9_estimate: Optional[float] = None
 
     model_config = {"from_attributes": True}

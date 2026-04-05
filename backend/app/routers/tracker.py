@@ -156,3 +156,27 @@ async def delete_grading(sub_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Submission not found")
     await db.delete(sub)
     await db.commit()
+
+
+@router.post("/grading/{sub_id}/fetch-prices", response_model=GradingSubmissionOut)
+async def fetch_grading_prices(sub_id: int, db: AsyncSession = Depends(get_db)):
+    """Fetch PSA 10 and PSA 9 price estimates from 130point for a grading submission."""
+    result = await db.execute(select(GradingSubmission).where(GradingSubmission.id == sub_id))
+    sub = result.scalar_one_or_none()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    if not sub.player_name or not sub.year or not sub.card_set:
+        raise HTTPException(status_code=400, detail="player_name, year, and card_set are required to fetch prices")
+
+    from app.services.price_tracker_130 import fetch_130point_prices
+    prices = await fetch_130point_prices(
+        player_name=sub.player_name,
+        year=sub.year,
+        card_set=sub.card_set,
+        variation=sub.variation,
+    )
+    sub.psa10_estimate = prices.get("psa10")
+    sub.psa9_estimate = prices.get("psa9")
+    await db.commit()
+    await db.refresh(sub)
+    return sub

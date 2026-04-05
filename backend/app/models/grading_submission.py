@@ -32,5 +32,9 @@ class GradingSubmission(Base):
     purchase_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     grading_fee: Mapped[float | None] = mapped_column(Float, nullable=True)
 
+    # 130point price estimates
+    psa10_estimate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    psa9_estimate: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

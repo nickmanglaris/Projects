@@ -6,9 +6,10 @@ import { api } from "@/lib/api";
 import { DashboardSummary, TrajectoryResponse, TransactionListResponse } from "@/lib/types";
 import { PLSummaryCards } from "@/components/dashboard/PLSummaryCards";
 import { TrajectoryChart } from "@/components/dashboard/TrajectoryChart";
-import { TransactionTable } from "@/components/dashboard/TransactionTable";
-import { StatementUploader } from "@/components/dashboard/StatementUploader";
+import { RevenueBreakdown } from "@/components/dashboard/RevenueBreakdown";
 import { AlertTriangle, RefreshCw } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
+import Link from "next/link";
 
 const PERIODS = [
   { value: "30d", label: "30 Days" },
@@ -20,41 +21,8 @@ const PERIODS = [
 
 export default function DashboardPage() {
   const [period, setPeriod] = useState("12m");
-  const [txType, setTxType] = useState<string>("");
-  const [page, setPage] = useState(1);
-  const [showUploader, setShowUploader] = useState(false);
-  const [showManual, setShowManual] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
-  const [manualForm, setManualForm] = useState({
-    card_name: "", amount: "", transaction_date: "", transaction_type: "purchase", notes: "",
-  });
-  const [manualSaving, setManualSaving] = useState(false);
-  const [manualResult, setManualResult] = useState<string | null>(null);
-
-  async function handleManualSave() {
-    if (!manualForm.card_name || !manualForm.amount || !manualForm.transaction_date) return;
-    setManualSaving(true);
-    setManualResult(null);
-    try {
-      await api.post("/dashboard/transactions", {
-        card_name: manualForm.card_name,
-        amount: parseFloat(manualForm.amount),
-        transaction_date: manualForm.transaction_date,
-        transaction_type: manualForm.transaction_type,
-        notes: manualForm.notes,
-        ebay_fees: 0, shipping_cost: 0,
-      });
-      setManualResult("Transaction added.");
-      setManualForm({ card_name: "", amount: "", transaction_date: "", transaction_type: "purchase", notes: "" });
-      mutateSummary();
-      mutateTx();
-    } catch {
-      setManualResult("Failed to save — check backend.");
-    } finally {
-      setManualSaving(false);
-    }
-  }
 
   const { data: summary, isLoading: summaryLoading, mutate: mutateSummary } = useSWR<DashboardSummary>(
     `/dashboard/summary?period=${period}`
@@ -64,8 +32,8 @@ export default function DashboardPage() {
     `/dashboard/trajectory?period=${period}`
   );
 
-  const { data: transactions, isLoading: txLoading, mutate: mutateTx } = useSWR<TransactionListResponse>(
-    `/dashboard/transactions?page=${page}&limit=20${txType ? `&tx_type=${txType}` : ""}`
+  const { data: recentTx } = useSWR<TransactionListResponse>(
+    `/dashboard/transactions?page=1&limit=5`
   );
 
   async function handleSync() {
@@ -80,7 +48,6 @@ export default function DashboardPage() {
         `Synced ${sales.synced} sales + ${purchases.synced} purchases (${sales.skipped_duplicates + purchases.skipped_duplicates} already up to date)`
       );
       mutateSummary();
-      mutateTx();
     } catch {
       setSyncResult("Sync failed — check that your backend is running.");
     } finally {
@@ -94,10 +61,9 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-100">Business Dashboard</h1>
-          <p className="text-sm text-slate-500 mt-0.5">P&L overview and transaction history</p>
+          <p className="text-sm text-slate-500 mt-0.5">P&L overview and recent activity</p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Period selector */}
           <div className="flex bg-slate-900 border border-slate-700 rounded-lg overflow-hidden">
             {PERIODS.map((p) => (
               <button
@@ -153,125 +119,54 @@ export default function DashboardPage() {
         <PLSummaryCards summary={summary} />
       ) : null}
 
-      {/* Trajectory chart */}
+      {/* Charts row */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        {/* Trajectory chart — 60% */}
+        <div className="lg:col-span-3 bg-slate-900 rounded-xl border border-slate-700 p-5">
+          <h2 className="text-sm font-semibold text-slate-300 mb-4">Revenue & Profit Trajectory</h2>
+          {trajectoryLoading ? (
+            <div className="h-52 animate-pulse bg-slate-800 rounded-lg" />
+          ) : (
+            <TrajectoryChart data={trajectory?.data ?? []} />
+          )}
+        </div>
+
+        {/* Revenue breakdown donut — 40% */}
+        <div className="lg:col-span-2 bg-slate-900 rounded-xl border border-slate-700 p-5">
+          {summaryLoading ? (
+            <div className="h-52 animate-pulse bg-slate-800 rounded-lg" />
+          ) : summary ? (
+            <RevenueBreakdown summary={summary} />
+          ) : null}
+        </div>
+      </div>
+
+      {/* Recent Activity */}
       <div className="bg-slate-900 rounded-xl border border-slate-700 p-5">
-        <h2 className="text-sm font-semibold text-slate-300 mb-4">Revenue & Profit Trajectory</h2>
-        {trajectoryLoading ? (
-          <div className="h-64 animate-pulse bg-slate-800 rounded-lg" />
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-slate-300">Recent Activity</h2>
+          <Link href="/transactions" className="text-xs text-orange-400 hover:underline">
+            View all →
+          </Link>
+        </div>
+        {!recentTx?.items?.length ? (
+          <p className="text-sm text-slate-500">No transactions yet.</p>
         ) : (
-          <TrajectoryChart data={trajectory?.data ?? []} />
-        )}
-      </div>
-
-      {/* Transactions */}
-      <div className="bg-slate-900 rounded-xl border border-slate-700 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-slate-300">Transactions</h2>
-          <div className="flex items-center gap-2">
-            <select
-              value={txType}
-              onChange={(e) => { setTxType(e.target.value); setPage(1); }}
-              className="text-xs bg-slate-800 border border-slate-700 text-slate-300 rounded-lg px-2 py-1 focus:outline-none"
-            >
-              <option value="">All Types</option>
-              <option value="purchase">Purchases</option>
-              <option value="sale">Sales</option>
-            </select>
-          </div>
-        </div>
-        {txLoading ? (
-          <div className="h-40 animate-pulse bg-slate-800 rounded-lg" />
-        ) : (
-          <TransactionTable
-            transactions={transactions?.items ?? []}
-            total={transactions?.total ?? 0}
-            page={page}
-            onPageChange={setPage}
-          />
-        )}
-      </div>
-
-      {/* Statement upload */}
-      <div className="bg-slate-900 rounded-xl border border-slate-700 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-slate-300">Import Bank Statement</h2>
-          <button onClick={() => setShowUploader((v) => !v)} className="text-xs text-orange-400 hover:underline">
-            {showUploader ? "Hide" : "Show"}
-          </button>
-        </div>
-        {showUploader && <StatementUploader />}
-      </div>
-
-      {/* Manual transaction */}
-      <div className="bg-slate-900 rounded-xl border border-slate-700 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-slate-300">Add Manual Transaction</h2>
-          <button onClick={() => setShowManual((v) => !v)} className="text-xs text-orange-400 hover:underline">
-            {showManual ? "Hide" : "Show"}
-          </button>
-        </div>
-        {showManual && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Description / Card Name</label>
-                <input
-                  value={manualForm.card_name}
-                  onChange={(e) => setManualForm((f) => ({ ...f, card_name: e.target.value }))}
-                  placeholder="e.g. Initial inventory purchase"
-                  className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-orange-500"
-                />
+          <div className="space-y-2">
+            {recentTx.items.map((tx) => (
+              <div key={tx.id} className="flex items-center justify-between py-2 border-b border-slate-700/40 last:border-0">
+                <div className="flex items-center gap-3">
+                  <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${tx.transaction_type === "sale" ? "bg-emerald-400" : "bg-orange-400"}`} />
+                  <div>
+                    <p className="text-sm text-slate-200 leading-tight">{tx.card_name}</p>
+                    <p className="text-xs text-slate-500">{tx.transaction_date} · {tx.transaction_type}</p>
+                  </div>
+                </div>
+                <span className={`font-mono text-sm font-medium ${tx.transaction_type === "sale" ? "text-emerald-400" : "text-slate-300"}`}>
+                  {tx.transaction_type === "sale" ? "+" : "-"}{formatCurrency(tx.amount)}
+                </span>
               </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Amount ($)</label>
-                <input
-                  type="number" step="0.01" min="0"
-                  value={manualForm.amount}
-                  onChange={(e) => setManualForm((f) => ({ ...f, amount: e.target.value }))}
-                  placeholder="0.00"
-                  className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-orange-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Date</label>
-                <input
-                  type="date"
-                  value={manualForm.transaction_date}
-                  onChange={(e) => setManualForm((f) => ({ ...f, transaction_date: e.target.value }))}
-                  className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-orange-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Type</label>
-                <select
-                  value={manualForm.transaction_type}
-                  onChange={(e) => setManualForm((f) => ({ ...f, transaction_type: e.target.value }))}
-                  className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-orange-500"
-                >
-                  <option value="purchase">Purchase (Cost)</option>
-                  <option value="sale">Sale (Revenue)</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Notes (optional)</label>
-              <input
-                value={manualForm.notes}
-                onChange={(e) => setManualForm((f) => ({ ...f, notes: e.target.value }))}
-                placeholder="e.g. Startup cost — initial card inventory"
-                className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-orange-500"
-              />
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleManualSave}
-                disabled={manualSaving || !manualForm.card_name || !manualForm.amount || !manualForm.transaction_date}
-                className="px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {manualSaving ? "Saving…" : "Add Transaction"}
-              </button>
-              {manualResult && <span className="text-xs text-emerald-400">{manualResult}</span>}
-            </div>
+            ))}
           </div>
         )}
       </div>

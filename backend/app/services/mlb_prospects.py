@@ -341,10 +341,21 @@ async def _find_contentful_token(client: AsyncSession, extra_urls: list[str] | N
                         logger.info(f"site-core '{keyword}' context: ...{ctx}...")
                         break  # just first occurrence
 
-            # Log space ID context if found
-            idx = js.find("iiozhi00a8lc")
-            if idx >= 0:
-                logger.info(f"Space ID in {url[-40:]}: ...{js[max(0,idx-100):idx+200]}...")
+            # Find space ID in bundle and log context — token is nearby even if minified
+            for idx_start in range(0, len(js)):
+                idx = js.find("iiozhi00a8lc", idx_start)
+                if idx < 0:
+                    break
+                ctx = js[max(0, idx - 200):idx + 400]
+                logger.info(f"Space ID context in {url[-50:]}: ...{ctx}...")
+                # Look for a 40-60 char alphanumeric token string in that context
+                token_candidates = re.findall(r'[A-Za-z0-9_\-]{40,60}', ctx)
+                token_candidates = [t for t in token_candidates if t != "iiozhi00a8lc" and len(t) >= 40]
+                if token_candidates:
+                    logger.info(f"  -> Token candidates near space ID: {[t[:20]+'...' for t in token_candidates]}")
+                idx_start = idx + 1
+                if idx_start >= len(js):
+                    break
 
         except Exception as e:
             logger.warning(f"Token search failed for {url[-60:]}: {e}")

@@ -21,11 +21,11 @@ FINDING_API = "https://svcs.ebay.com/services/search/FindingService/v1"
 GRADED_TERMS = ["psa", "bgs", "sgc", "cgc", "hga", "ace", "graded", "gem mt", "mint 10"]
 
 _cache: dict[str, dict] = {}
-CACHE_TTL_HOURS = 2
+CACHE_TTL_HOURS = 24
 
 
 def _cache_key(req: dict) -> str:
-    today = datetime.now().strftime("%Y-%m-%d-%H")
+    today = datetime.now().strftime("%Y-%m-%d")
     return hashlib.md5(f"{req}_{today}".encode()).hexdigest()
 
 

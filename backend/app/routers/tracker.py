@@ -171,10 +171,9 @@ async def fetch_grading_prices(sub_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail="player_name, year, and card_set are required to fetch prices")
 
     from app.services.ebay_scraper import fetch_psa_completed_prices
-    psa10, psa9 = await asyncio.gather(
-        fetch_psa_completed_prices(sub.player_name, 10, sub.year, sub.card_set, sub.variation, max_results=5),
-        fetch_psa_completed_prices(sub.player_name, 9, sub.year, sub.card_set, sub.variation, max_results=5),
-    )
+    psa10 = await fetch_psa_completed_prices(sub.player_name, 10, sub.year, sub.card_set, sub.variation, max_results=5)
+    await asyncio.sleep(0.5)
+    psa9 = await fetch_psa_completed_prices(sub.player_name, 9, sub.year, sub.card_set, sub.variation, max_results=5)
     sub.psa10_estimate = psa10
     sub.psa9_estimate = psa9
     await db.commit()

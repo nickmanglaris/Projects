@@ -20,7 +20,10 @@ CATEGORY_TX_TYPE = {
     "ebay_purchase": "purchase",
     "psa_grading": "purchase",
     "shipping": "purchase",
+    "card_purchase": "purchase",
 }
+# Categories to silently skip (payments, credits, finance charges)
+SKIP_CATEGORIES = {"skip", "unknown"}
 
 
 async def reconcile_upload(db: AsyncSession, upload_id: int) -> dict:
@@ -40,6 +43,9 @@ async def reconcile_upload(db: AsyncSession, upload_id: int) -> dict:
     skipped = 0
 
     for line in lines:
+        if line.category in SKIP_CATEGORIES:
+            skipped += 1
+            continue
         tx_type = CATEGORY_TX_TYPE.get(line.category)
         if not tx_type:
             skipped += 1

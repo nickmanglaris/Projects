@@ -36,8 +36,23 @@ EBAY_PATTERNS = re.compile(
     r"ebay|paypal\s*\*ebay|ebay\s*inc|paypal\s*\*\s*ebay",
     re.IGNORECASE,
 )
-SHIPPING_PATTERNS = re.compile(r"usps|fedex|ups\b|stamps\.com|pirateship", re.IGNORECASE)
-PSA_PATTERNS = re.compile(r"\bpsa\b|collectors\s*universe", re.IGNORECASE)
+SHIPPING_PATTERNS = re.compile(
+    r"usps|fedex|ups\b|stamps\.com|pirateship",
+    re.IGNORECASE,
+)
+PSA_PATTERNS = re.compile(
+    r"\bpsa\b|psacard|collectors\s*universe",
+    re.IGNORECASE,
+)
+CARD_PURCHASE_PATTERNS = re.compile(
+    r"amazon|amz\*|collectible\s*invest|topps\s*vault|tiktok\s*shop|sams\s*club|target\b",
+    re.IGNORECASE,
+)
+SKIP_PATTERNS = re.compile(
+    r"payment\s*-\s*thank\s*you|online\s*payment\s*from|online\s*scheduled\s*payment"
+    r"|cash\s*rewards\s*statement|rwd\s*promo|finance\s*charge|intuit\s*\*q",
+    re.IGNORECASE,
+)
 
 DATE_RE = re.compile(
     r"\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|[A-Z][a-z]{2}\s+\d{1,2},?\s+\d{4})\b"
@@ -47,12 +62,16 @@ AMOUNT_RE = re.compile(r"-?\$?[\d,]+\.\d{2}(?:\s+CR)?")
 
 def _classify(description: str, amount: float) -> str:
     desc = description or ""
+    if SKIP_PATTERNS.search(desc):
+        return "skip"
     if PSA_PATTERNS.search(desc):
         return "psa_grading"
     if SHIPPING_PATTERNS.search(desc):
         return "shipping"
     if EBAY_PATTERNS.search(desc):
         return "ebay_sale" if amount > 0 else "ebay_purchase"
+    if CARD_PURCHASE_PATTERNS.search(desc):
+        return "card_purchase"
     return "unknown"
 
 

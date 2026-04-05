@@ -97,6 +97,7 @@ async def fetch_psa_completed_prices(
     year: Optional[int] = None,
     card_set: Optional[str] = None,
     variation: Optional[str] = None,
+    max_results: int = 25,
 ) -> Optional[float]:
     """
     Search eBay completed/sold listings for a specific PSA grade.
@@ -127,8 +128,8 @@ async def fetch_psa_completed_prices(
 
     try:
         async with httpx.AsyncClient(timeout=20) as client:
-            # Call 1: last 7 days, up to 25 results
-            url = _completed_items_url(app_id, query, max_results=25, end_time_from=seven_days_ago)
+            # Call 1: last 7 days, up to max_results
+            url = _completed_items_url(app_id, query, max_results=max_results, end_time_from=seven_days_ago)
             logger.info(f"completedItems (7d, PSA {grade}): '{query}'")
             resp = await client.get(url)
             logger.info(f"completedItems status: {resp.status_code}")

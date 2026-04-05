@@ -124,39 +124,46 @@ async def _fetch_mlb_pipeline() -> list[dict]:
         return []
 
 
+SITE_CORE_URL = "https://builds.mlbstatic.com/mlb.com/builds/site-core/1758062334267/site-core.min.js"
+
+TOKEN_PATTERNS = [
+    r'accessToken["\s:]+["\']([A-Za-z0-9_\-]{20,60})["\']',
+    r'deliveryToken["\s:]+["\']([A-Za-z0-9_\-]{20,60})["\']',
+    r'contentful[^"\']{0,30}["\']([A-Za-z0-9_\-]{40,60})["\']',
+    r'CONTENTFUL_ACCESS_TOKEN["\s:=]+["\']([A-Za-z0-9_\-]{20,60})["\']',
+    r'iiozhi00a8lc[^"\']{0,30}["\']([A-Za-z0-9_\-]{40,60})["\']',
+    r'"token"\s*:\s*"([A-Za-z0-9_\-]{40,60})"',
+    r'space["\s:]+["\']iiozhi00a8lc["\'][^}]{0,200}["\']([A-Za-z0-9_\-]{40,60})["\']',
+]
+
+
 async def _find_contentful_token(client: AsyncSession) -> Optional[str]:
-    """Search the top-100-prospects page JS for the Contentful delivery API token."""
+    """Search the site-core JS bundle for the Contentful delivery API token."""
     try:
-        resp = await client.get(
-            "https://www.mlb.com/milb/prospects/top-100-prospects", timeout=20
-        )
-        logger.info(f"top-100 page: {resp.status_code} | {len(resp.text)} chars")
+        logger.info(f"Fetching site-core bundle: {SITE_CORE_URL}")
+        resp = await client.get(SITE_CORE_URL, timeout=30)
+        logger.info(f"site-core bundle: {resp.status_code} | {len(resp.text)} chars")
         if resp.status_code != 200:
             return None
 
-        html = resp.text
+        js = resp.text
 
-        # Contentful delivery tokens are 43-char alphanumeric strings
-        # They typically appear next to "accessToken", "delivery", or "contentful"
-        patterns = [
-            r'accessToken["\s:]+["\']([A-Za-z0-9_\-]{20,50})["\']',
-            r'deliveryToken["\s:]+["\']([A-Za-z0-9_\-]{20,50})["\']',
-            r'contentful[^"\']*["\']([A-Za-z0-9_\-]{40,50})["\']',
-            r'CONTENTFUL_ACCESS_TOKEN["\s:=]+["\']([A-Za-z0-9_\-]{20,50})["\']',
-            r'"token"\s*:\s*"([A-Za-z0-9_\-]{40,50})"',
-        ]
-        for pattern in patterns:
-            matches = re.findall(pattern, html, re.IGNORECASE)
+        for pattern in TOKEN_PATTERNS:
+            matches = re.findall(pattern, js, re.IGNORECASE)
             if matches:
-                logger.info(f"Token candidates from pattern '{pattern}': {matches[:3]}")
-                return matches[0]
+                # Filter out obvious non-tokens (too short, common words)
+                candidates = [m for m in matches if len(m) > 20]
+                if candidates:
+                    logger.info(f"Token candidates ({pattern[:40]}): {[c[:16]+'...' for c in candidates[:3]]}")
+                    return candidates[0]
 
-        # Also log any JS src URLs so we can fetch bundles
-        js_srcs = re.findall(r'src=["\']([^"\']+\.js[^"\']*)["\']', html)
-        logger.info(f"JS bundles found: {js_srcs[:5]}")
+        # Log any occurrence of the space ID with surrounding context
+        idx = js.find("iiozhi00a8lc")
+        if idx >= 0:
+            logger.info(f"Space ID context: ...{js[max(0,idx-100):idx+200]}...")
 
     except Exception as e:
-        logger.warning(f"Token search failed: {e}")
+        logger.warning(f"Token search in site-core failed: {e}")
     return None
 
 
